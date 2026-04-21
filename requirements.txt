@@ -1,0 +1,16 @@
+# Core CV
+opencv-python
+numpy
+ultralytics         # YOLOv8 support
+mediapipe           # Gaze estimation and face mesh
+torch               # Deep Learning framework
+torchvision
+
+# Data Analysis
+pandas
+matplotlib
+scikit-learn
+
+# Utilities
+tqdm
+pyyaml

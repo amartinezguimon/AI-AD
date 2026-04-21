@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VisionMetrics AI — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #07080f;
+      --surface: #0e1018;
+      --card:    #13161f;
+      --border:  rgba(255,255,255,0.07);
+      --accent:  #00e5a0;
+      --accent2: #00aaff;
+      --warn:    #ff6b35;
+      --text:    #e8eaf0;
+      --muted:   #6b7280;
+      --glow:    rgba(0,229,160,0.15);
+      --up:      #00e5a0;
+      --down:    #ff6b35;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── File:// warning banner ── */
+    #file-warn {
+      display: none;
+      background: rgba(255,107,53,0.12);
+      border-bottom: 1px solid rgba(255,107,53,0.4);
+      padding: 12px 36px;
+      font-size: 0.82rem;
+      color: #ff6b35;
+      text-align: center;
+    }
+    #file-warn code {
+      background: rgba(255,107,53,0.15);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      background: rgba(14,16,24,0.85);
+      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 36px 0;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 12px var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50% { opacity:0.5; transform:scale(1.3); }
+    }
+    .logo h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
+    .logo span { color: var(--accent); }
+    .live-badge {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 20px;
+      background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.25);
+      font-size: 0.75rem; font-weight: 600; color: var(--accent); letter-spacing: 0.05em;
+      transition: opacity 0.3s;
+    }
+    .live-badge .dot { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:pulse 1s infinite; }
+    .store-name { font-size:0.85rem; color:var(--muted); text-align:right; }
+    .store-name strong { color:var(--text); display:block; font-size:0.95rem; }
+
+    /* ── Tab nav ── */
+    .tab-nav {
+      display: flex; gap: 0;
+      padding: 0 36px;
+      margin-top: 12px;
+    }
+    .tab-btn {
+      padding: 10px 22px;
+      font-size: 0.83rem; font-weight: 600;
+      color: var(--muted);
+      background: none; border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Layout ── */
+    main { padding: 32px 36px; max-width: 1400px; margin: 0 auto; }
+
+    /* ── KPI cards ── */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 20px; margin-bottom: 32px;
+    }
+    .kpi-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px;
+      position: relative; overflow: hidden;
+      transition: transform 0.2s, border-color 0.3s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.14); }
+    .kpi-card::before {
+      content: ''; position: absolute; top:0; left:0; right:0; height:2px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+    }
+    .kpi-card.accent2::before { --card-accent: var(--accent2); }
+    .kpi-card.warn::before    { --card-accent: var(--warn); }
+    .kpi-label {
+      font-size: 0.75rem; font-weight: 500; color: var(--muted);
+      letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px;
+    }
+    .kpi-value {
+      font-size: 2.6rem; font-weight: 800;
+      letter-spacing: -0.04em; line-height: 1; color: var(--text);
+      transition: color 0.4s;
+    }
+    .kpi-value.highlight { color: var(--accent); text-shadow: 0 0 24px var(--glow); }
+    .kpi-sub { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+    .gauge-wrap { display:flex; align-items:center; gap:20px; margin-top:4px; }
+    .gauge-ring { width:70px; height:70px; flex-shrink:0; }
+
+    /* ── Card base ── */
+    .chart-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+    }
+    .chart-card h2 {
+      font-size: 0.85rem; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 20px;
+    }
+
+    /* ── Top row: live chart + status ── */
+    .bottom-grid {
+      display: grid; grid-template-columns: 1fr 340px; gap: 20px;
+    }
+    .status-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .status-card h2 {
+      font-size: 0.85rem; font-weight: 600; color: var(--muted);
+      letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 16px;
+    }
+    .status-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 13px 0; border-bottom: 1px solid var(--border);
+    }
+    .status-row:last-child { border-bottom: none; }
+    .status-key { font-size: 0.82rem; color: var(--muted); }
+    .status-val { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .status-val.green  { color: var(--accent); }
+    .status-val.blue   { color: var(--accent2); }
+    .active-indicator  { display:flex; align-items:center; gap:8px; font-size:0.82rem; color:var(--muted); }
+    .active-dot        { width:9px; height:9px; border-radius:50%; background:#6b7280; transition:background 0.4s, box-shadow 0.4s; }
+    .active-dot.on     { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+
+    /* ── Hourly chart ── */
+    .hourly-section { margin-top: 20px; }
+
+    /* ── Weekly comparison table ── */
+    .weekly-section { margin-top: 20px; }
+    .weekly-section h2 { margin-bottom: 8px; }
+
+    .compare-sub {
+      font-size: 0.78rem; color: var(--muted); margin-bottom: 20px;
+    }
+    .compare-block { margin-bottom: 28px; }
+    .compare-block:last-child { margin-bottom: 0; }
+    .compare-block-title {
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cmp-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .cmp-table th {
+      text-align: left; padding: 8px 12px;
+      color: var(--muted); font-weight: 500;
+      font-size: 0.75rem; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    .cmp-table th:not(:first-child) { text-align: right; }
+    .cmp-table td {
+      padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,0.03);
+      color: var(--text);
+    }
+    .cmp-table td:not(:first-child) { text-align: right; }
+    .cmp-table tr:last-child td { border-bottom: none; }
+    .cmp-table .metric-name { color: var(--muted); font-size: 0.8rem; }
+    .cmp-table .cur-val { font-weight: 700; color: var(--text); }
+    .cmp-table .ref-val { color: var(--muted); }
+    .delta-up   { color: var(--up);   font-weight: 600; }
+    .delta-down { color: var(--down); font-weight: 600; }
+    .delta-flat { color: var(--muted); font-weight: 500; }
+
+    .no-history {
+      text-align: center; padding: 40px 20px;
+      color: var(--muted); font-size: 0.85rem; line-height: 1.6;
+    }
+    .no-history strong { color: var(--text); display: block; margin-bottom: 6px; font-size: 0.95rem; }
+
+    /* ── Loading overlay ── */
+    #no-data {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(7,8,15,0.92); backdrop-filter: blur(6px);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+    }
+    #no-data h2 { font-size: 1.2rem; font-weight: 700; }
+    #no-data p  { font-size: 0.85rem; color: var(--muted); text-align: center; max-width: 360px; line-height: 1.6; }
+    .spinner {
+      width:40px; height:40px;
+      border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ════════════════════════════════════
+       MONTHLY REPORT TAB
+    ════════════════════════════════════ */
+    #tab-report { display: none; }
+
+    /* Demo banner */
+    .demo-banner {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(0,170,255,0.08); border: 1px solid rgba(0,170,255,0.2);
+      border-radius: 10px; padding: 10px 18px;
+      font-size: 0.78rem; color: var(--accent2);
+      margin-bottom: 24px;
+    }
+    .demo-banner strong { font-weight: 700; }
+
+    /* Filter bar */
+    .report-filters {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 28px; flex-wrap: wrap;
+    }
+    .filter-group { display: flex; gap: 4px; }
+    .filter-btn {
+      padding: 7px 16px; border-radius: 8px;
+      font-size: 0.8rem; font-weight: 500;
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .filter-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.18); }
+    .filter-btn.active {
+      background: rgba(0,229,160,0.12); border-color: rgba(0,229,160,0.35);
+      color: var(--accent);
+    }
+    .filter-sep { width: 1px; background: var(--border); align-self: stretch; margin: 0 4px; }
+    .filter-label { font-size: 0.75rem; color: var(--muted); align-self: center; letter-spacing: 0.04em; text-transform: uppercase; }
+
+    select.store-select {
+      padding: 7px 12px; border-radius: 8px;
+      font-size: 0.8rem; font-weight: 500;
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; outline: none;
+      transition: border-color 0.15s;
+    }
+    select.store-select:focus { border-color: rgba(0,229,160,0.35); }
+
+    /* Report KPI grid reuses .kpi-grid */
+    .report-kpi-value {
+      font-size: 2.2rem; font-weight: 800;
+      letter-spacing: -0.04em; line-height: 1;
+      color: var(--text);
+    }
+    .report-kpi-value.teal { color: var(--accent); }
+
+    /* Trend chart */
+    .trend-section { margin-top: 20px; }
+
+    /* Best / Worst callouts */
+    .extremes-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+      margin-top: 20px;
+    }
+    .extreme-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px;
+      position: relative; overflow: hidden;
+    }
+    .extreme-card.best::before {
+      content: ''; position: absolute; top:0; left:0; right:0; height:2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+    .extreme-card.worst::before {
+      content: ''; position: absolute; top:0; left:0; right:0; height:2px;
+      background: linear-gradient(90deg, transparent, var(--warn), transparent);
+    }
+    .extreme-icon { font-size: 1.5rem; margin-bottom: 10px; }
+    .extreme-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .extreme-date { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+    .extreme-stats { display: flex; gap: 24px; }
+    .extreme-stat .val { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.03em; }
+    .extreme-stat .val.teal { color: var(--accent); }
+    .extreme-stat .val.warn { color: var(--warn); }
+    .extreme-stat .sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+    /* Daily breakdown table */
+    .breakdown-section { margin-top: 20px; }
+    .breakdown-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .breakdown-header h2 { margin-bottom: 0; }
+    .page-info { font-size: 0.78rem; color: var(--muted); }
+
+    .data-table {
+      width: 100%; border-collapse: collapse; font-size: 0.84rem;
+    }
+    .data-table th {
+      padding: 10px 14px; text-align: left;
+      font-size: 0.73rem; font-weight: 600; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .data-table th:hover { color: var(--text); }
+    .data-table th.sorted { color: var(--accent); }
+    .data-table th:not(:first-child) { text-align: right; }
+    .data-table td {
+      padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.03);
+      color: var(--text);
+    }
+    .data-table td:not(:first-child) { text-align: right; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .store-tag {
+      display: inline-block; padding: 2px 8px;
+      border-radius: 5px; font-size: 0.72rem; font-weight: 600;
+    }
+    .store-tag.centro { background: rgba(0,229,160,0.12); color: var(--accent); }
+    .store-tag.norte  { background: rgba(0,170,255,0.12); color: var(--accent2); }
+    .rate-pill {
+      display: inline-block; padding: 3px 9px;
+      border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    }
+    .rate-pill.high { background: rgba(0,229,160,0.12); color: var(--accent); }
+    .rate-pill.mid  { background: rgba(0,170,255,0.10); color: var(--accent2); }
+    .rate-pill.low  { background: rgba(255,107,53,0.10); color: var(--warn); }
+
+    .pagination {
+      display: flex; align-items: center; justify-content: flex-end;
+      gap: 8px; margin-top: 16px;
+    }
+    .page-btn {
+      padding: 6px 14px; border-radius: 7px;
+      font-size: 0.8rem; font-weight: 500;
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .page-btn:disabled { opacity: 0.35; cursor: default; }
+    .page-btn:not(:disabled):hover { color: var(--text); border-color: rgba(255,255,255,0.18); }
+
+    /* ════════════════════════════════════
+       CALENDAR HEATMAP
+    ════════════════════════════════════ */
+    .cal-section { margin-top: 20px; }
+    .cal-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+    }
+    .cal-legend {
+      display: flex; gap: 16px; flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .leg-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.75rem; color: var(--muted);
+    }
+    .leg-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .cal-grid-wrap { overflow-x: auto; }
+    .cal-dow-row {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 6px; margin-bottom: 6px;
+      max-width: 560px;
+    }
+    .cal-dow-row span {
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--muted);
+      text-align: center;
+    }
+    .cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 6px; max-width: 560px;
+    }
+    .cal-day {
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      position: relative;
+      min-width: 0;
+    }
+    .cal-day:hover { transform: scale(1.15); z-index: 2; }
+    .cal-day.empty { cursor: default; background: transparent !important; }
+    .cal-day.selected {
+      box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--accent);
+      transform: scale(1.12);
+    }
+    .cal-day .day-num {
+      font-size: 0.72rem; font-weight: 700; line-height: 1;
+      color: rgba(255,255,255,0.9);
+    }
+    .cal-day.empty .day-num { color: transparent; }
+    /* score colours */
+    .cal-day.score-strong { background: #00e5a0; }
+    .cal-day.score-decent { background: #f5c518; }
+    .cal-day.score-weak   { background: #ff9800; }
+    .cal-day.score-poor   { background: #ff4444; }
+    .cal-day.score-none   { background: #1e2230; cursor: default; }
+    /* tooltip */
+    .cal-day .cal-tip {
+      display: none;
+      position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%);
+      background: #1e2230; border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px;
+      font-size: 0.72rem; color: var(--text);
+      white-space: nowrap; z-index: 10;
+      pointer-events: none;
+      line-height: 1.6;
+    }
+    .cal-day:hover .cal-tip { display: block; }
+
+    .day-detail-section { margin-top: 20px; }
+
+    footer {
+      text-align: center; padding: 24px;
+      font-size: 0.72rem; color: var(--muted);
+      border-top: 1px solid var(--border); margin-top: 32px;
+    }
+
+    @media (max-width: 1100px) {
+      .kpi-grid { grid-template-columns: repeat(2,1fr); }
+      .bottom-grid { grid-template-columns: 1fr; }
+      .extremes-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      main { padding: 20px 16px; }
+      header { padding-bottom: 0; }
+      .header-top { padding: 16px 16px 0; }
+      .tab-nav { padding: 0 16px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .report-filters { gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- file:// warning -->
+<div id="file-warn">
+  ⚠ Dashboard must be served over HTTP — open it via:
+  <code>python -m http.server 8080</code>
+  then visit <code>http://localhost:8080/dashboard.html</code>
+</div>
+
+<!-- Waiting overlay (only shows when live tab active and no data) -->
+<div id="no-data">
+  <div class="spinner"></div>
+  <h2>Connecting to AI Engine…</h2>
+  <p>
+    Start <code>python src/inference/main.py</code> and make sure you open this page via
+    <code>python -m http.server 8080</code> → <strong>localhost:8080/dashboard.html</strong>
+  </p>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="header-top">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      <h1>Vision<span>Metrics</span> AI</h1>
+    </div>
+    <div class="live-badge" id="live-badge"><div class="dot"></div> LIVE</div>
+    <div class="store-name">
+      <strong id="hdr-store">—</strong>
+      Session: <span id="hdr-time">0.0 min</span>
+    </div>
+  </div>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="live" onclick="switchTab('live')">● Live Analysis</button>
+    <button class="tab-btn" data-tab="report" onclick="switchTab('report')">📊 Monthly Report</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ══════════════ LIVE TAB ══════════════ -->
+  <section id="tab-live">
+
+    <!-- KPI Row -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Passersby</div>
+        <div class="kpi-value" id="kpi-pass">0</div>
+        <div class="kpi-sub">Persons detected this session</div>
+      </div>
+      <div class="kpi-card accent2">
+        <div class="kpi-label">Engaged (5 s+)</div>
+        <div class="kpi-value" id="kpi-eng">0</div>
+        <div class="kpi-sub">Confirmed display attention</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Engagement Rate</div>
+        <div class="gauge-wrap">
+          <div>
+            <div class="kpi-value highlight" id="kpi-rate">0%</div>
+            <div class="kpi-sub">of passersby engaged</div>
+          </div>
+          <svg class="gauge-ring" viewBox="0 0 36 36">
+            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>
+            <path id="gauge-arc"
+              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none" stroke="#00e5a0" stroke-width="3"
+              stroke-dasharray="0, 100" stroke-linecap="round"
+              style="transition: stroke-dasharray 0.8s ease;"/>
+          </svg>
+        </div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Total Attention</div>
+        <div class="kpi-value" id="kpi-attn">0s</div>
+        <div class="kpi-sub">Cumulative seconds of engagement</div>
+      </div>
+    </div>
+
+    <!-- Live timeline + status -->
+    <div class="bottom-grid">
+      <div class="chart-card">
+        <h2>Engagement Rate — Live Timeline</h2>
+        <canvas id="eng-chart" height="90"></canvas>
+      </div>
+      <div class="status-card">
+        <h2>Live Status</h2>
+        <div class="status-row">
+          <span class="status-key">Camera Feed</span>
+          <div class="active-indicator">
+            <div class="active-dot on" id="cam-dot"></div>
+            <span id="cam-status">Active</span>
+          </div>
+        </div>
+        <div class="status-row">
+          <span class="status-key">People in Frame</span>
+          <span class="status-val blue" id="s-active">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-key">Currently Engaged</span>
+          <span class="status-val green" id="s-current">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-key">Store Name</span>
+          <span class="status-val" id="s-store">—</span>
+        </div>
+        <div class="status-row">
+          <span class="status-key">Session Duration</span>
+          <span class="status-val" id="s-time">0.0 min</span>
+        </div>
+        <div class="status-row">
+          <span class="status-key">Last Update</span>
+          <span class="status-val" id="s-updated" style="font-size:0.78rem;">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hourly bar chart -->
+    <div class="chart-card hourly-section">
+      <h2>Engaged per Hour — Today</h2>
+      <canvas id="hourly-chart" height="75"></canvas>
+    </div>
+
+    <!-- Weekly comparison table -->
+    <div class="chart-card weekly-section">
+      <h2>Performance Comparison</h2>
+      <p class="compare-sub" id="weekly-sub">Loading historical data…</p>
+      <div id="weekly-body"></div>
+    </div>
+
+  </section><!-- /tab-live -->
+
+
+  <!-- ══════════════ MONTHLY REPORT TAB ══════════════ -->
+  <section id="tab-report">
+
+    <div class="demo-banner">
+      <span>📋</span>
+      <span><strong>Demo Mode</strong> — Showing synthetic data (fake_data_demo) to illustrate the client reporting interface. In production, this pulls from <code>data/session_history.json</code>.</span>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="report-filters">
+      <span class="filter-label">Range</span>
+      <div class="filter-group" id="range-group">
+        <button class="filter-btn active" data-range="1m" onclick="setRange('1m')">This Month</button>
+        <button class="filter-btn" data-range="lm" onclick="setRange('lm')">Last Month</button>
+        <button class="filter-btn" data-range="3m" onclick="setRange('3m')">Last 3 Months</button>
+      </div>
+      <div class="filter-sep"></div>
+      <span class="filter-label">Store</span>
+      <select class="store-select" id="store-select" onchange="setStore(this.value)">
+        <option value="all">All Stores</option>
+        <option value="Vitrina Centro">Vitrina Centro</option>
+        <option value="Vitrina Norte">Vitrina Norte</option>
+      </select>
+    </div>
+
+    <!-- Report KPI cards -->
+    <div class="kpi-grid" id="report-kpis">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Passersby</div>
+        <div class="report-kpi-value" id="r-pass">—</div>
+        <div class="kpi-sub">Persons in selected period</div>
+      </div>
+      <div class="kpi-card accent2">
+        <div class="kpi-label">Total Engaged (5s+)</div>
+        <div class="report-kpi-value" id="r-eng">—</div>
+        <div class="kpi-sub">Confirmed display attention</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Engagement Rate</div>
+        <div class="report-kpi-value teal" id="r-rate">—</div>
+        <div class="kpi-sub">Average across selected days</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Avg Attention Time</div>
+        <div class="report-kpi-value" id="r-attn">—</div>
+        <div class="kpi-sub">Per engaged person</div>
+      </div>
+    </div>
+
+    <!-- Trend chart -->
+    <div class="chart-card trend-section">
+      <h2>Engagement Trend — Daily</h2>
+      <canvas id="trend-chart" height="80"></canvas>
+    </div>
+
+    <!-- Best / Worst callouts -->
+    <div class="extremes-grid">
+      <div class="extreme-card best" id="best-card">
+        <div class="extreme-icon">🏆</div>
+        <div class="extreme-label">Best Day</div>
+        <div class="extreme-date" id="best-date">—</div>
+        <div class="extreme-stats">
+          <div class="extreme-stat">
+            <div class="val teal" id="best-rate">—</div>
+            <div class="sub">Engagement Rate</div>
+          </div>
+          <div class="extreme-stat">
+            <div class="val" id="best-attn">—</div>
+            <div class="sub">Avg Attention</div>
+          </div>
+          <div class="extreme-stat">
+            <div class="val" id="best-pax">—</div>
+            <div class="sub">Passersby</div>
+          </div>
+        </div>
+      </div>
+      <div class="extreme-card worst" id="worst-card">
+        <div class="extreme-icon">⚠️</div>
+        <div class="extreme-label">Worst Day</div>
+        <div class="extreme-date" id="worst-date">—</div>
+        <div class="extreme-stats">
+          <div class="extreme-stat">
+            <div class="val warn" id="worst-rate">—</div>
+            <div class="sub">Engagement Rate</div>
+          </div>
+          <div class="extreme-stat">
+            <div class="val" id="worst-attn">—</div>
+            <div class="sub">Avg Attention</div>
+          </div>
+          <div class="extreme-stat">
+            <div class="val" id="worst-pax">—</div>
+            <div class="sub">Passersby</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CALENDAR HEATMAP ══ -->
+    <div class="chart-card cal-section">
+      <div class="cal-header">
+        <div>
+          <h2 style="margin-bottom:6px">Performance Calendar</h2>
+          <p class="compare-sub" style="margin-bottom:0">Click any day to see hourly impressions</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="page-btn" onclick="calNav(-1)">←</button>
+          <span id="cal-month-label" style="font-size:0.88rem;font-weight:600;min-width:110px;text-align:center"></span>
+          <button class="page-btn" onclick="calNav(1)">→</button>
+        </div>
+      </div>
+      <div class="cal-legend">
+        <span class="leg-item"><span class="leg-dot" style="background:#ff4444"></span>Poor</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#ff9800"></span>Weak</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#f5c518"></span>Decent</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#00e5a0"></span>Strong</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#1e2230"></span>No data</span>
+      </div>
+      <div class="cal-grid-wrap">
+        <div class="cal-dow-row">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+    </div>
+
+    <!-- ══ DAY DETAIL (hourly chart) ══ -->
+    <div class="chart-card day-detail-section" id="day-detail" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div>
+          <h2 style="margin-bottom:4px" id="day-detail-title">Hourly Impressions</h2>
+          <p class="compare-sub" style="margin-bottom:0" id="day-detail-sub"></p>
+        </div>
+        <button class="page-btn" onclick="closeDayDetail()">✕ Close</button>
+      </div>
+      <canvas id="hourly-day-chart" height="80"></canvas>
+    </div>
+
+    <!-- Daily breakdown table -->
+    <div class="chart-card breakdown-section">
+      <div class="breakdown-header">
+        <h2>Daily Breakdown</h2>
+        <span class="page-info" id="page-info"></span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th onclick="sortBy('date')">Date <span id="sort-date"></span></th>
+            <th onclick="sortBy('store')">Store <span id="sort-store"></span></th>
+            <th onclick="sortBy('passersby')">Passersby <span id="sort-passersby"></span></th>
+            <th onclick="sortBy('engaged')">Engaged <span id="sort-engaged"></span></th>
+            <th onclick="sortBy('rate')">Rate <span id="sort-rate"></span></th>
+            <th onclick="sortBy('avg_attention_s')">Avg Attention <span id="sort-avg_attention_s"></span></th>
+            <th onclick="sortBy('peak_hour')">Peak Hour <span id="sort-peak_hour"></span></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div class="pagination">
+        <button class="page-btn" id="btn-prev" onclick="changePage(-1)">← Prev</button>
+        <button class="page-btn" id="btn-next" onclick="changePage(1)">Next →</button>
+      </div>
+    </div>
+
+  </section><!-- /tab-report -->
+
+</main>
+
+<footer>VisionMetrics AI · Privacy-Preserving Retail Analytics · No personal data stored</footer>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// FILE:// GUARD
+// ════════════════════════════════════════════════════════════
+if (window.location.protocol === 'file:') {
+  document.getElementById('file-warn').style.display = 'block';
+}
+
+// ════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ════════════════════════════════════════════════════════════
+let activeTab = 'live';
+const noDataOverlay = document.getElementById('no-data');
+
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === name));
+  document.getElementById('tab-live').style.display   = name === 'live'   ? 'block' : 'none';
+  document.getElementById('tab-report').style.display = name === 'report' ? 'block' : 'none';
+  document.getElementById('live-badge').style.opacity = name === 'live'   ? '1' : '0.35';
+  // Always hide the overlay when switching to report
+  if (name === 'report') {
+    noDataOverlay.style.display = 'none';
+    // Defer render until after the section is visible and has dimensions
+    requestAnimationFrame(() => { renderReport(); renderCalendar(); });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// LIVE TIMELINE CHART
+// ════════════════════════════════════════════════════════════
+const MAX_POINTS = 60;
+const liveLabels = [], liveData = [];
+const liveCtx = document.getElementById('eng-chart').getContext('2d');
+const liveChart = new Chart(liveCtx, {
+  type: 'line',
+  data: {
+    labels: liveLabels,
+    datasets: [{
+      label: 'Engagement Rate %',
+      data: liveData,
+      borderColor: '#00e5a0',
+      backgroundColor: 'rgba(0,229,160,0.08)',
+      borderWidth: 2, tension: 0.4, fill: true,
+      pointRadius: 0, pointHoverRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, animation: { duration: 400 },
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: {
+        min: 0, max: 100,
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: { color: '#6b7280', font: { size: 11 }, callback: v => v + '%' }
+      }
+    }
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// HOURLY BAR CHART
+// ════════════════════════════════════════════════════════════
+const hourlyCtx = document.getElementById('hourly-chart').getContext('2d');
+const hourlyChart = new Chart(hourlyCtx, {
+  type: 'bar',
+  data: { labels: [], datasets: [{
+    label: 'Engaged (5s+)',
+    data: [],
+    backgroundColor: [],
+    borderRadius: 5, borderSkipped: false,
+  }]},
+  options: {
+    responsive: true, animation: { duration: 600 },
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} engaged` } }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 11 } } },
+      y: {
+        min: 0, beginAtZero: true,
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: { color: '#6b7280', font: { size: 11 }, precision: 0 }
+      }
+    }
+  }
+});
+
+async function refreshHourly() {
+  try {
+    const res = await fetch('data/hourly_log.json?t=' + Date.now());
+    if (!res.ok) throw new Error();
+    const all = await res.json();
+    const today = new Date().toISOString().slice(0, 10);
+    const todayData = all.filter(e => e.date === today);
+
+    const nowHour = new Date().getHours();
+    const labels  = todayData.map(e => e.hour.slice(11, 16));
+    const values  = todayData.map(e => e.engaged);
+    const colors  = todayData.map(e => {
+      const h = parseInt(e.hour.slice(11, 13));
+      return h === nowHour ? '#00e5a0' : 'rgba(0,170,255,0.5)';
+    });
+
+    hourlyChart.data.labels   = labels;
+    hourlyChart.data.datasets[0].data = values;
+    hourlyChart.data.datasets[0].backgroundColor = colors;
+    hourlyChart.update();
+  } catch(_) {}
+  setTimeout(refreshHourly, 60_000);
+}
+
+// ════════════════════════════════════════════════════════════
+// WEEKLY COMPARISON TABLE
+// ════════════════════════════════════════════════════════════
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function mondayOf(d) {
+  const r = new Date(d);
+  const day = r.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  r.setDate(r.getDate() + diff);
+  return r;
+}
+function sumSessions(sessions) {
+  const pax  = sessions.reduce((s,e) => s + (e.passersby||0), 0);
+  const eng  = sessions.reduce((s,e) => s + (e.engaged||0), 0);
+  const attn = sessions.reduce((s,e) => s + (e.attention_s||0), 0);
+  const rate = pax > 0 ? (eng/pax*100) : 0;
+  const avgAttn = eng > 0 ? (attn/eng) : 0;
+  return { pax, eng, rate, avgAttn };
+}
+function fmtDelta(cur, ref, isRate=false, isTime=false) {
+  if (ref === 0) return { txt: '—', cls: 'delta-flat' };
+  const pct = ((cur - ref) / ref) * 100;
+  const up  = pct >= 0;
+  const arrow = up ? '▲' : '▼';
+  const txt = isRate
+    ? `${arrow} ${Math.abs(pct).toFixed(1)}pp`
+    : `${arrow} ${Math.abs(pct).toFixed(0)}%`;
+  return { txt, cls: up ? 'delta-up' : 'delta-down' };
+}
+function buildCmpTable(rows, headers) {
+  let html = `<table class="cmp-table"><thead><tr>`;
+  headers.forEach((h,i) => html += `<th${i===0?' style="width:160px"':''}>${h}</th>`);
+  html += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr>';
+    r.forEach((cell,i) => {
+      if (i === 0) html += `<td class="metric-name">${cell}</td>`;
+      else if (typeof cell === 'object' && cell.cls)
+        html += `<td class="${cell.cls}">${cell.txt}</td>`;
+      else html += `<td>${cell}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+async function refreshWeekly() {
+  const sub  = document.getElementById('weekly-sub');
+  const body = document.getElementById('weekly-body');
+  try {
+    const res = await fetch('data/session_history.json?t=' + Date.now());
+    if (!res.ok) throw new Error('no file');
+    const all = await res.json();
+    if (!all.length) throw new Error('empty');
+
+    const now      = new Date();
+    const todayStr = isoDate(now);
+    const lwStr    = isoDate(addDays(now, -7));
+    const nowHour  = now.getHours();
+
+    const todaySessions  = all.filter(e => e.date === todayStr);
+    const lwAllSessions  = all.filter(e => e.date === lwStr);
+    const lwSameSessions = lwAllSessions.filter(e => {
+      if (!e.start_iso) return true;
+      return new Date(e.start_iso).getHours() <= nowHour;
+    });
+
+    const todayAgg  = sumSessions(todaySessions);
+    const lwSameAgg = sumSessions(lwSameSessions);
+    const lwFullAgg = sumSessions(lwAllSessions);
+    const hasDayData = todaySessions.length > 0 || lwAllSessions.length > 0;
+
+    const mon   = mondayOf(now);
+    const lwMon = addDays(mon, -7);
+    const lwSun = addDays(lwMon, 6);
+    const thisWeekSessions = all.filter(e => e.date >= isoDate(mon) && e.date <= todayStr);
+    const lastWeekSessions = all.filter(e => e.date >= isoDate(lwMon) && e.date <= isoDate(lwSun));
+    const twAgg = sumSessions(thisWeekSessions);
+    const lpAgg = sumSessions(lastWeekSessions);
+    const hasWeekData = thisWeekSessions.length > 0 || lastWeekSessions.length > 0;
+
+    if (!hasDayData && !hasWeekData) throw new Error('no relevant data');
+
+    sub.textContent = `Updated ${now.toLocaleTimeString()} · Refreshes every 60 s`;
+    let html = '';
+
+    if (hasDayData) {
+      const dayRows = [
+        ['Passersby',       todayAgg.pax,                    lwSameAgg.pax,                    fmtDelta(todayAgg.pax, lwSameAgg.pax),         lwFullAgg.pax],
+        ['Engaged (5s+)',   todayAgg.eng,                    lwSameAgg.eng,                    fmtDelta(todayAgg.eng, lwSameAgg.eng),         lwFullAgg.eng],
+        ['Engagement Rate', todayAgg.rate.toFixed(1)+'%',   lwSameAgg.rate.toFixed(1)+'%',   fmtDelta(todayAgg.rate, lwSameAgg.rate, true),  lwFullAgg.rate.toFixed(1)+'%'],
+        ['Avg Attention',   todayAgg.avgAttn.toFixed(1)+'s',lwSameAgg.avgAttn.toFixed(1)+'s',fmtDelta(todayAgg.avgAttn, lwSameAgg.avgAttn, false, true), lwFullAgg.avgAttn.toFixed(1)+'s'],
+      ];
+      html += `<div class="compare-block">
+        <div class="compare-block-title">Today vs Same Day Last Week</div>
+        ${buildCmpTable(dayRows, ['Metric','Today so far',`Last week (until ${nowHour}:00)`,'Δ','Last week (full day)'])}
+      </div>`;
+    }
+    if (hasWeekData) {
+      const wkRows = [
+        ['Passersby',       twAgg.pax,                    lpAgg.pax,                    fmtDelta(twAgg.pax, lpAgg.pax)],
+        ['Engaged (5s+)',   twAgg.eng,                    lpAgg.eng,                    fmtDelta(twAgg.eng, lpAgg.eng)],
+        ['Engagement Rate', twAgg.rate.toFixed(1)+'%',   lpAgg.rate.toFixed(1)+'%',   fmtDelta(twAgg.rate, lpAgg.rate, true)],
+        ['Avg Attention',   twAgg.avgAttn.toFixed(1)+'s',lpAgg.avgAttn.toFixed(1)+'s',fmtDelta(twAgg.avgAttn, lpAgg.avgAttn, false, true)],
+      ];
+      html += `<div class="compare-block">
+        <div class="compare-block-title">This Week vs Last Week (Mon – today)</div>
+        ${buildCmpTable(wkRows, ['Metric','This week','Last week','Δ'])}
+      </div>`;
+    }
+    body.innerHTML = html;
+  } catch(_) {
+    sub.textContent = '';
+    body.innerHTML = `<div class="no-history">
+      <strong>No historical data yet</strong>
+      Run sessions across multiple days and the comparison will populate automatically.
+    </div>`;
+  }
+  setTimeout(refreshWeekly, 60_000);
+}
+
+// ════════════════════════════════════════════════════════════
+// LIVE STATS REFRESH (every 1 s)
+// ════════════════════════════════════════════════════════════
+function animateCount(el, target) {
+  const current = parseInt(el.textContent) || 0;
+  if (current === target) return;
+  const step  = Math.sign(target - current);
+  const steps = Math.min(Math.abs(target - current), 12);
+  let i = 0;
+  const iv = setInterval(() => {
+    el.textContent = parseInt(el.textContent) + step;
+    if (++i >= steps || parseInt(el.textContent) === target) {
+      el.textContent = target; clearInterval(iv);
+    }
+  }, 30);
+}
+function setGauge(pct) {
+  document.getElementById('gauge-arc').setAttribute('stroke-dasharray', `${pct}, 100`);
+}
+let lastTimestamp = 0;
+
+async function refresh() {
+  const onLive = activeTab === 'live';
+  try {
+    const res = await fetch('data/live_stats.json?t=' + Date.now());
+    if (!res.ok) throw new Error('not found');
+    const d = await res.json();
+    if (onLive) noDataOverlay.style.display = 'none';
+
+    const stale = (Date.now()/1000 - d.timestamp) > 5;
+    document.getElementById('cam-dot').className    = 'active-dot' + (stale ? '' : ' on');
+    document.getElementById('cam-status').textContent = stale ? 'Stale' : 'Active';
+
+    animateCount(document.getElementById('kpi-pass'), d.passersby);
+    animateCount(document.getElementById('kpi-eng'),  d.engaged);
+    document.getElementById('kpi-attn').textContent = (d.total_attention_s ?? 0).toFixed(1) + 's';
+
+    const rate = d.engagement_rate ?? 0;
+    document.getElementById('kpi-rate').textContent = rate.toFixed(1) + '%';
+    setGauge(Math.min(rate, 100));
+
+    document.getElementById('s-active').textContent  = d.active_people ?? 0;
+    document.getElementById('s-current').textContent = d.currently_engaged ?? 0;
+    document.getElementById('s-store').textContent   = d.store_name ?? '—';
+    document.getElementById('s-time').textContent    = (d.session_min ?? 0) + ' min';
+    document.getElementById('hdr-store').textContent = d.store_name ?? '—';
+    document.getElementById('hdr-time').textContent  = (d.session_min ?? 0) + ' min';
+
+    if (d.timestamp !== lastTimestamp) {
+      lastTimestamp = d.timestamp;
+      const t = new Date(d.timestamp * 1000);
+      liveLabels.push(t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+      liveData.push(rate);
+      if (liveLabels.length > MAX_POINTS) { liveLabels.shift(); liveData.shift(); }
+      liveChart.update('none');
+    }
+    document.getElementById('s-updated').textContent = new Date().toLocaleTimeString();
+  } catch(_) {
+    if (activeTab === 'live') noDataOverlay.style.display = 'flex';
+  }
+  setTimeout(refresh, 1000);
+}
+
+// ════════════════════════════════════════════════════════════
+// DEMO DATA (fake_data_demo)
+// 60 days × 2 stores, 2026-02-17 → 2026-04-18
+// Each row also carries `hourly`: array[24] of impression counts
+// ════════════════════════════════════════════════════════════
+(function generateDemoData() {
+  const stores    = ['Vitrina Centro', 'Vitrina Norte'];
+  const peakHours = ['10:00','11:00','12:00','16:00','17:00','18:00'];
+  const rows = [];
+  const start = new Date('2026-02-17');
+  const end   = new Date('2026-04-18');
+
+  // Seeded pseudo-random for reproducibility
+  let seed = 42;
+  function rng() { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; }
+  function rngInt(lo, hi) { return Math.floor(rng() * (hi - lo + 1)) + lo; }
+  function rngFloat(lo, hi) { return rng() * (hi - lo) + lo; }
+
+  // Hourly traffic profile: morning peak 10-12, afternoon peak 16-19
+  const hourProfile = [0,0,0,0,0,0,0,0.02,0.04,0.08,0.12,0.13,0.10,0.07,0.06,0.08,0.11,0.12,0.09,0.06,0.04,0.02,0.01,0];
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const dateStr = d.toISOString().slice(0, 10);
+
+    for (const store of stores) {
+      const basePax = store === 'Vitrina Centro' ? 130 : 100;
+      const weekendFactor = isWeekend ? 0.65 : 1.0;
+
+      const passersby = Math.round(rngInt(basePax - 50, basePax + 50) * weekendFactor);
+      const rateBase  = store === 'Vitrina Centro' ? 0.32 : 0.26;
+      const rate      = Math.min(0.72, Math.max(0.10, rngFloat(rateBase - 0.12, rateBase + 0.18)));
+      const engaged   = Math.round(passersby * rate);
+      const avg_attention_s = rngFloat(5.5, 22.0);
+      const peak_hour = peakHours[rngInt(0, peakHours.length - 1)];
+
+      // hourly impressions: distribute total passersby across hours using profile + noise
+      const hourly = hourProfile.map(weight => {
+        const base = Math.round(passersby * weight);
+        const noise = rngInt(-2, 3);
+        return Math.max(0, base + noise);
+      });
+
+      rows.push({
+        date: dateStr, store, passersby, engaged,
+        rate: parseFloat((rate*100).toFixed(1)),
+        avg_attention_s: parseFloat(avg_attention_s.toFixed(1)),
+        peak_hour, hourly,
+      });
+    }
+  }
+  window.DEMO_DATA = rows;
+
+  // Build a lookup: DEMO_HOURLY[date][store] = hourly array
+  window.DEMO_HOURLY = {};
+  rows.forEach(r => {
+    if (!DEMO_HOURLY[r.date]) DEMO_HOURLY[r.date] = {};
+    DEMO_HOURLY[r.date][r.store] = r.hourly;
+  });
+})();
+
+// ════════════════════════════════════════════════════════════
+// MONTHLY REPORT — state & helpers
+// ════════════════════════════════════════════════════════════
+let reportFilter = { range: '1m', store: 'all' };
+let reportSort   = { col: 'date', dir: -1 };  // -1 = desc
+let reportPage   = 0;
+const PAGE_SIZE  = 10;
+let trendChart   = null;
+
+// ════════════════════════════════════════════════════════════
+// ── DAY SCORING UTILITY ──────────────────────────────────────
+// dayScore(row) → [0,1]
+//   Combines normalised traffic (passersby) and attention rate
+//   weighted 40 / 60. Normalisation is done against the month's
+//   own distribution inside classifyMonth(), so colours are always
+//   relative to the visible period — easy to retune via SCORE_W.
+// ════════════════════════════════════════════════════════════
+const SCORE_W = { traffic: 0.40, attention: 0.60 };
+
+function rawScore(row) {
+  // attention component: engagement rate (0–100 → 0–1) × avg_attention normalised to 30s cap
+  const attentionScore = (row.rate / 100) * Math.min(row.avg_attention_s / 30, 1);
+  // traffic component: raw passersby — normalised externally in classifyMonth
+  return { traffic: row.passersby, attention: attentionScore };
+}
+
+// Returns array of same rows with .scoreColor and .scoreNorm added
+function classifyMonth(rows) {
+  if (!rows.length) return rows;
+
+  const trafficVals  = rows.map(r => r.passersby);
+  const attVals      = rows.map(r => rawScore(r).attention);
+  const tMin = Math.min(...trafficVals), tMax = Math.max(...trafficVals);
+  const aMin = Math.min(...attVals),     aMax = Math.max(...attVals);
+  const norm = (v, lo, hi) => hi === lo ? 0.5 : (v - lo) / (hi - lo);
+
+  return rows.map(r => {
+    const s = rawScore(r);
+    const scoreNorm = SCORE_W.traffic * norm(s.traffic, tMin, tMax)
+                    + SCORE_W.attention * norm(s.attention, aMin, aMax);
+    let scoreColor;
+    if      (scoreNorm >= 0.70) scoreColor = 'strong';
+    else if (scoreNorm >= 0.45) scoreColor = 'decent';
+    else if (scoreNorm >= 0.22) scoreColor = 'weak';
+    else                        scoreColor = 'poor';
+    return { ...r, scoreNorm, scoreColor };
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// ── CALENDAR STATE ───────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+let calYear  = 2026;
+let calMonth = 3;  // 0-indexed → April 2026 (demo end month)
+let calSelectedDate = null;
+let hourlyDayChart = null;
+
+function calNav(delta) {
+  calMonth += delta;
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0;  calYear++; }
+  renderCalendar();
+}
+
+function closeDayDetail() {
+  document.getElementById('day-detail').style.display = 'none';
+  calSelectedDate = null;
+  // Remove selected highlight
+  document.querySelectorAll('.cal-day.selected').forEach(el => el.classList.remove('selected'));
+}
+
+// ════════════════════════════════════════════════════════════
+// ── CALENDAR RENDER ──────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+function renderCalendar() {
+  const grid  = document.getElementById('cal-grid');
+  const label = document.getElementById('cal-month-label');
+
+  const monthName = new Date(calYear, calMonth, 1)
+    .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  label.textContent = monthName;
+
+  // Gather all data rows for this month × current store filter
+  const monthStr = `${calYear}-${String(calMonth + 1).padStart(2,'0')}`;
+  const monthRows = DEMO_DATA.filter(r => {
+    if (!r.date.startsWith(monthStr)) return false;
+    if (reportFilter.store !== 'all' && r.store !== reportFilter.store) return false;
+    return true;
+  });
+
+  // Aggregate by date (sum stores when "all")
+  const byDate = {};
+  monthRows.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = { passersby:0, engaged:0, attn:0, n:0 };
+    byDate[r.date].passersby    += r.passersby;
+    byDate[r.date].engaged      += r.engaged;
+    byDate[r.date].attn         += r.avg_attention_s;
+    byDate[r.date].n            += 1;
+  });
+
+  // Build synthetic rows for classifyMonth
+  const aggRows = Object.entries(byDate).map(([date, v]) => ({
+    date,
+    passersby:       v.passersby,
+    engaged:         v.engaged,
+    rate:            v.passersby > 0 ? v.engaged / v.passersby * 100 : 0,
+    avg_attention_s: v.n > 0 ? v.attn / v.n : 0,
+  }));
+  const classified = classifyMonth(aggRows);
+  const scoreMap = {};
+  classified.forEach(r => { scoreMap[r.date] = r; });
+
+  // Build calendar grid
+  const firstDow = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  // Shift so Mon=0
+  const offset = firstDow === 0 ? 6 : firstDow - 1;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  let html = '';
+  // Empty cells before day 1
+  for (let i = 0; i < offset; i++) {
+    html += `<div class="cal-day empty"><span class="day-num"></span></div>`;
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const rec = scoreMap[dateStr];
+    const colorClass = rec ? `score-${rec.scoreColor}` : 'score-none';
+    const isSelected = dateStr === calSelectedDate ? ' selected' : '';
+
+    let tipHtml = '';
+    if (rec) {
+      tipHtml = `<div class="cal-tip">
+        <strong>${fmtDate(dateStr)}</strong><br>
+        Passersby: ${rec.passersby}<br>
+        Engaged: ${rec.engaged}<br>
+        Rate: ${rec.rate.toFixed(1)}%<br>
+        Avg Attention: ${rec.avg_attention_s.toFixed(1)}s<br>
+        Score: ${(rec.scoreNorm * 100).toFixed(0)}/100
+      </div>`;
+    }
+
+    const clickable = rec ? `onclick="selectCalDay('${dateStr}')"` : '';
+    html += `<div class="cal-day ${colorClass}${isSelected}" ${clickable} title="${dateStr}">
+      <span class="day-num">${day}</span>
+      ${tipHtml}
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════
+// ── DAY DETAIL — hourly impressions chart ────────────────────
+// ════════════════════════════════════════════════════════════
+function selectCalDay(dateStr) {
+  // Deselect previous
+  document.querySelectorAll('.cal-day.selected').forEach(el => el.classList.remove('selected'));
+  // Highlight selected
+  document.querySelectorAll('.cal-day').forEach(el => {
+    if (el.getAttribute('title') === dateStr) el.classList.add('selected');
+  });
+  calSelectedDate = dateStr;
+
+  const detailEl = document.getElementById('day-detail');
+  detailEl.style.display = '';
+
+  // Scroll to detail panel smoothly
+  setTimeout(() => detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+
+  // Aggregate hourly across stores for the selected date + store filter
+  const hourlyAgg = new Array(24).fill(0);
+  let hasData = false;
+
+  const storeFilter = reportFilter.store;
+  const storesToSum = storeFilter === 'all'
+    ? ['Vitrina Centro', 'Vitrina Norte']
+    : [storeFilter];
+
+  storesToSum.forEach(store => {
+    const h = DEMO_HOURLY[dateStr] && DEMO_HOURLY[dateStr][store];
+    if (h) { h.forEach((v, i) => { hourlyAgg[i] += v; }); hasData = true; }
+  });
+
+  document.getElementById('day-detail-title').textContent =
+    `Hourly Impressions — ${fmtDate(dateStr)}`;
+  document.getElementById('day-detail-sub').textContent =
+    storeFilter === 'all' ? 'All stores combined' : storeFilter;
+
+  if (hourlyDayChart) { hourlyDayChart.destroy(); hourlyDayChart = null; }
+
+  if (!hasData) {
+    document.getElementById('hourly-day-chart').style.display = 'none';
+    document.getElementById('day-detail-sub').textContent = 'No data available for this day.';
+    return;
+  }
+  document.getElementById('hourly-day-chart').style.display = '';
+
+  const labels = Array.from({length:24}, (_,i) => `${String(i).padStart(2,'0')}:00`);
+  const nowH   = new Date().getHours();
+  // Business hours 8–21 highlighted vs off-hours dimmed
+  const colors = hourlyAgg.map((_, i) =>
+    (i >= 8 && i <= 21) ? 'rgba(0,170,255,0.7)' : 'rgba(0,170,255,0.2)');
+
+  const ctx = document.getElementById('hourly-day-chart').getContext('2d');
+  hourlyDayChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Impressions',
+        data: hourlyAgg,
+        backgroundColor: colors,
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} impressions` } }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#6b7280', font: { size: 10 },
+            maxRotation: 0,
+            callback: (_, i) => i % 2 === 0 ? `${String(i).padStart(2,'0')}:00` : '',
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#6b7280', font: { size: 11 }, precision: 0 },
+        }
+      }
+    }
+  });
+}
+
+function getDateRange(range) {
+  // Work with ISO date strings to avoid timezone issues
+  const DEMO_END = '2026-04-18';
+  if (range === '1m') {
+    return { from: '2026-04-01', to: DEMO_END };
+  } else if (range === 'lm') {
+    return { from: '2026-03-01', to: '2026-03-31' };
+  } else {
+    return { from: '2026-02-01', to: DEMO_END };
+  }
+}
+
+function filterData() {
+  const { from, to } = getDateRange(reportFilter.range);
+  return DEMO_DATA.filter(r => {
+    if (r.date < from || r.date > to) return false;
+    if (reportFilter.store !== 'all' && r.store !== reportFilter.store) return false;
+    return true;
+  });
+}
+
+function setRange(r) {
+  reportFilter.range = r;
+  reportPage = 0;
+  // Snap calendar to the selected range's month
+  if (r === '1m') { calYear = 2026; calMonth = 3; }
+  else if (r === 'lm') { calYear = 2026; calMonth = 2; }
+  else { calYear = 2026; calMonth = 1; }
+  document.querySelectorAll('#range-group .filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === r));
+  renderReport();
+  renderCalendar();
+}
+function setStore(s) { reportFilter.store = s; reportPage = 0; renderReport(); renderCalendar(); }
+function sortBy(col) {
+  if (reportSort.col === col) reportSort.dir *= -1;
+  else { reportSort.col = col; reportSort.dir = -1; }
+  renderReport();
+}
+function changePage(delta) { reportPage += delta; renderReport(); }
+
+function fmtDate(str) {
+  const d = new Date(str + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function fmtAttn(s) { return s.toFixed(1) + 's'; }
+
+function renderReport() {
+  const rows = filterData();
+  if (!rows.length) return;
+
+  // ── KPI summary ──────────────────────────────────────────
+  const totPax  = rows.reduce((s,r) => s + r.passersby, 0);
+  const totEng  = rows.reduce((s,r) => s + r.engaged, 0);
+  const avgRate = rows.reduce((s,r) => s + r.rate, 0) / rows.length;
+  const avgAttn = rows.reduce((s,r) => s + r.avg_attention_s, 0) / rows.length;
+
+  document.getElementById('r-pass').textContent = totPax.toLocaleString();
+  document.getElementById('r-eng').textContent  = totEng.toLocaleString();
+  document.getElementById('r-rate').textContent = avgRate.toFixed(1) + '%';
+  document.getElementById('r-attn').textContent = fmtAttn(avgAttn);
+
+  // ── Trend chart ──────────────────────────────────────────
+  // Aggregate by date (sum stores if "all")
+  const byDate = {};
+  rows.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = { pax: 0, eng: 0, attn: 0, n: 0 };
+    byDate[r.date].pax  += r.passersby;
+    byDate[r.date].eng  += r.engaged;
+    byDate[r.date].attn += r.avg_attention_s;
+    byDate[r.date].n    += 1;
+  });
+  const dates     = Object.keys(byDate).sort();
+  const rateArr   = dates.map(d => byDate[d].pax > 0 ? parseFloat((byDate[d].eng / byDate[d].pax * 100).toFixed(1)) : 0);
+  const paxArr    = dates.map(d => byDate[d].pax);
+  const labels    = dates.map(d => {
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
+  });
+
+  if (trendChart) { trendChart.destroy(); trendChart = null; }
+  const ctx = document.getElementById('trend-chart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Engagement Rate %',
+          data: rateArr,
+          borderColor: '#00e5a0', backgroundColor: 'rgba(0,229,160,0.07)',
+          borderWidth: 2, tension: 0.3, fill: true,
+          pointRadius: dates.length > 30 ? 0 : 3, pointHoverRadius: 5,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Passersby',
+          data: paxArr,
+          borderColor: '#00aaff', backgroundColor: 'rgba(0,170,255,0.0)',
+          borderWidth: 1.5, tension: 0.3, fill: false, borderDash: [4,3],
+          pointRadius: 0, pointHoverRadius: 4,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 500 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#6b7280', font: { size: 11 }, boxWidth: 12, padding: 16 }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#6b7280', font: { size: 10 },
+            maxTicksLimit: 12,
+            maxRotation: 0,
+          }
+        },
+        y: {
+          min: 0, max: 100,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#6b7280', font: { size: 11 }, callback: v => v + '%' },
+          title: { display: true, text: 'Rate %', color: '#6b7280', font: { size: 10 } }
+        },
+        y2: {
+          position: 'right',
+          grid: { display: false },
+          ticks: { color: '#6b7280', font: { size: 11 } },
+          title: { display: true, text: 'Passersby', color: '#6b7280', font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  // ── Best / Worst day ─────────────────────────────────────
+  // Use per-date aggregated rate for ranking
+  const ranked = dates.map(d => ({
+    date: d,
+    rate: rateArr[dates.indexOf(d)],
+    pax:  byDate[d].pax,
+    attn: byDate[d].attn / byDate[d].n,
+  })).sort((a,b) => b.rate - a.rate);
+
+  const best  = ranked[0];
+  const worst = ranked[ranked.length - 1];
+
+  document.getElementById('best-date').textContent  = fmtDate(best.date);
+  document.getElementById('best-rate').textContent  = best.rate.toFixed(1) + '%';
+  document.getElementById('best-attn').textContent  = fmtAttn(best.attn);
+  document.getElementById('best-pax').textContent   = best.pax;
+  document.getElementById('worst-date').textContent = fmtDate(worst.date);
+  document.getElementById('worst-rate').textContent = worst.rate.toFixed(1) + '%';
+  document.getElementById('worst-attn').textContent = fmtAttn(worst.attn);
+  document.getElementById('worst-pax').textContent  = worst.pax;
+
+  // ── Sort & paginate ──────────────────────────────────────
+  const col = reportSort.col;
+  const dir = reportSort.dir;
+  const sorted = [...rows].sort((a,b) => {
+    const av = a[col], bv = b[col];
+    if (typeof av === 'string') return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+
+  // Update sort indicators
+  ['date','store','passersby','engaged','rate','avg_attention_s','peak_hour'].forEach(c => {
+    const el = document.getElementById('sort-' + c);
+    if (el) el.textContent = c === col ? (dir === 1 ? ' ↑' : ' ↓') : '';
+    const th = el ? el.closest('th') : null;
+    if (th) th.classList.toggle('sorted', c === col);
+  });
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  reportPage = Math.max(0, Math.min(reportPage, totalPages - 1));
+  const pageRows = sorted.slice(reportPage * PAGE_SIZE, (reportPage + 1) * PAGE_SIZE);
+
+  document.getElementById('page-info').textContent =
+    `${reportPage * PAGE_SIZE + 1}–${Math.min((reportPage+1)*PAGE_SIZE, sorted.length)} of ${sorted.length}`;
+  document.getElementById('btn-prev').disabled = reportPage === 0;
+  document.getElementById('btn-next').disabled = reportPage >= totalPages - 1;
+
+  const storeClass = s => s.includes('Centro') ? 'centro' : 'norte';
+  const rateClass  = r => r >= 35 ? 'high' : r >= 20 ? 'mid' : 'low';
+
+  document.getElementById('table-body').innerHTML = pageRows.map(r => `
+    <tr>
+      <td>${fmtDate(r.date)}</td>
+      <td><span class="store-tag ${storeClass(r.store)}">${r.store}</span></td>
+      <td>${r.passersby}</td>
+      <td>${r.engaged}</td>
+      <td><span class="rate-pill ${rateClass(r.rate)}">${r.rate}%</span></td>
+      <td>${fmtAttn(r.avg_attention_s)}</td>
+      <td>${r.peak_hour}</td>
+    </tr>`).join('');
+}
+
+// ── Boot ────────────────────────────────────────────────────
+refresh();
+refreshHourly();
+refreshWeekly();
+</script>
+</body>
+</html>
