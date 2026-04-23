@@ -54,23 +54,13 @@ VisionMetrics measures how people interact with physical advertisements (store w
 │       └── check_cameras.py     # Lists available camera indices
 │
 ├── models/
-│   ├── engagement_model.pth     # Trained PyTorch weights (included — ready to run)
-│   ├── face_landmarker.task     # MediaPipe Face Landmarker model
-│   └── pose_landmarker_lite.task
+│   └── engagement_model.pth     # Trained PyTorch weights (included — ready to run)
 │
 ├── configs/
-│   ├── store_config.json        # Active store calibration config
-│   └── store_config_template.json
+│   └── store_config_template.json  # Example store calibration config
 │
 ├── data/
 │   └── engagement_data.csv      # 1,127 labelled rows (real, no augmentation)
-│
-├── docs/
-│   ├── executive_report.docx    # Academic report (main deliverable)
-│   ├── PRIVACY_POLICY.md        # GDPR/RGPD compliance documentation
-│   ├── TEAM_ONBOARDING.md       # Step-by-step setup guide
-│   ├── HARDWARE_PROTOCOL_VITRINA.md  # Camera placement protocol
-│   └── figures/                 # Generated evaluation figures and metrics
 │
 ├── dashboard.html               # Chart.js live analytics dashboard
 ├── ad_screen.html               # Customer-facing ad/QR screen
@@ -92,8 +82,8 @@ VisionMetrics measures how people interact with physical advertisements (store w
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/AI-AD-PROJECT.git
-cd AI-AD-PROJECT
+git clone https://github.com/amartinezguimon/AI-AD.git
+cd AI-AD
 
 # 2. Create and activate virtual environment
 python -m venv venv
@@ -107,7 +97,7 @@ pip install -r requirements.txt
 python src/inference/main.py
 ```
 
-> **📖 First time?** Read [`docs/TEAM_ONBOARDING.md`](docs/TEAM_ONBOARDING.md) for a detailed walkthrough with screenshots and troubleshooting.
+> **First time?** Follow the Quick Start steps above. Change `CAMERA_INDEX = 0` in `src/inference/main.py` if the default camera does not open.
 
 ---
 
@@ -190,7 +180,7 @@ VisionMetrics is built on **Privacy by Design** principles:
 - ✅ All processing is local (edge-only, no cloud)
 - ✅ Only anonymous aggregate metrics are exported
 
-See [`docs/PRIVACY_POLICY.md`](docs/PRIVACY_POLICY.md) for full compliance details.
+The system processes only anonymous geometric data (head angles) and never stores images, video, or biometric identifiers.
 
 ---
 
