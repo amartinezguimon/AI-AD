@@ -43,29 +43,37 @@ VisionMetrics measures how people interact with physical advertisements (store w
 ```
 ├── src/
 │   ├── inference/
-│   │   ├── main.py              # Full 7-layer live analysis pipeline
-│   │   └── detect.py            # Simple YOLO person detection (demo)
+│   │   ├── main.py              # Full 7-layer live inference pipeline
+│   │   └── detect.py            # Standalone YOLO detection helper
 │   ├── training/
 │   │   ├── data_collector.py    # Live data labelling tool
-│   │   └── train.py             # PyTorch MLP trainer
+│   │   ├── train.py             # PyTorch MLP trainer (produces engagement_model.pth)
+│   │   └── train_report.py      # Evaluation script — reproduces all metrics & figures
 │   └── utils/
-│       └── calibrate.py         # Per-store calibration wizard
+│       ├── calibrate.py         # Per-store calibration wizard
+│       └── check_cameras.py     # Lists available camera indices
 │
 ├── models/
-│   └── engagement_model.pth     # Trained PyTorch weights (included)
+│   ├── engagement_model.pth     # Trained PyTorch weights (included — ready to run)
+│   ├── face_landmarker.task     # MediaPipe Face Landmarker model
+│   └── pose_landmarker_lite.task
 │
 ├── configs/
-│   └── store_config_template.json  # Example calibration config
+│   ├── store_config.json        # Active store calibration config
+│   └── store_config_template.json
 │
 ├── data/
-│   └── engagement_data.csv      # Labelled training dataset
+│   └── engagement_data.csv      # 1,127 labelled rows (real, no augmentation)
 │
 ├── docs/
-│   ├── TEAM_ONBOARDING.md       # Step-by-step setup guide for teammates
-│   ├── HARDWARE_PROTOCOL_VITRINA.md  # Camera placement & data collection protocol
-│   └── PRIVACY_POLICY.md        # GDPR/RGPD compliance documentation
+│   ├── executive_report.docx    # Academic report (main deliverable)
+│   ├── PRIVACY_POLICY.md        # GDPR/RGPD compliance documentation
+│   ├── TEAM_ONBOARDING.md       # Step-by-step setup guide
+│   ├── HARDWARE_PROTOCOL_VITRINA.md  # Camera placement protocol
+│   └── figures/                 # Generated evaluation figures and metrics
 │
 ├── dashboard.html               # Chart.js live analytics dashboard
+├── ad_screen.html               # Customer-facing ad/QR screen
 ├── requirements.txt             # Python dependencies
 └── .gitignore
 ```
@@ -132,6 +140,20 @@ python src/training/data_collector.py
 python src/training/train.py
 ```
 
+### Reproduce Results (Evaluation Metrics & Figures)
+```bash
+# Re-runs training on the existing dataset and generates all evaluation artefacts:
+#   docs/figures/train_curves.png       — loss and accuracy curves
+#   docs/figures/confusion_matrix.png   — confusion matrix on real test set
+#   docs/figures/roc_curve.png          — ROC curve vs logistic regression baseline
+#   docs/figures/per_distance_accuracy.png
+#   docs/figures/metrics.json           — all numeric metrics (accuracy, F1, AUC)
+#   docs/figures/classification_report.txt
+python src/training/train_report.py
+```
+
+The test set is held out from **real rows only** before any augmentation, preventing leakage. Expected results on the 226-row test set: accuracy ~99.6%, F1 ~0.996, ROC-AUC ~0.999.
+
 ### Live Dashboard
 ```bash
 # Terminal 1: Start the web server
@@ -155,7 +177,7 @@ Then open **http://localhost:8080/dashboard.html** in your browser.
 | Laptop Webcam | ⭐⭐ | Up to 1.5m | No setup needed |
 
 Change `CAMERA_INDEX` in `src/inference/main.py` if using an external camera (typically `1` or `2`).  
-Run `python check_cameras.py` to discover available camera indices.
+Run `python src/utils/check_cameras.py` to discover available camera indices.
 
 ---
 

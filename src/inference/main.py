@@ -25,6 +25,7 @@ import cv2
 import json
 import os
 import time
+import threading
 import numpy as np
 import torch
 import torch.nn as nn
@@ -131,9 +132,23 @@ store_config  = None
 engagement_zone = None
 if os.path.exists(STORE_CONFIG_PATH):
     with open(STORE_CONFIG_PATH, "r") as f:
-        store_config = json.load(f)
-    engagement_zone = store_config.get("derived")
-    print(f"🏪 Store config loaded: {store_config.get('store_name', 'Unknown')}")
+        _raw = json.load(f)
+    _name = _raw.get("store_name", "Unknown")
+    print(f"\n📁 Found saved calibration: '{_name}'")
+    print("   [1] Use this calibration")
+    print("   [2] Skip calibration (PyTorch only, no zone filter)")
+    print("   [3] Create new calibration (quit and run: python src/utils/calibrate.py)")
+    _choice = input("\n   Your choice (1/2/3): ").strip()
+    if _choice == "1":
+        store_config    = _raw
+        engagement_zone = _raw.get("derived")
+        print(f"✅ Using calibration: '{_name}'")
+    elif _choice == "3":
+        print("\n   Run:  python src/utils/calibrate.py")
+        print("   Then re-run main.py.\n")
+        exit()
+    else:
+        print("⚠️  Skipping calibration. Using PyTorch model only (no zone filtering).")
 else:
     print("⚠️  No store config found. Using PyTorch model only (no zone filtering).")
     print("   Run src/utils/calibrate.py to create a store-specific config.")
@@ -145,6 +160,10 @@ if not cap.isOpened():
     print(f"❌ Camera {CAMERA_INDEX} not found. Try changing CAMERA_INDEX.")
     exit()
 
+_cam_w   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+_cam_h   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+_cam_fps = cap.get(cv2.CAP_PROP_FPS)
+print(f"📐 Camera resolution: {_cam_w}x{_cam_h} @ {_cam_fps:.0f}fps")
 print("\n✅ ALL SYSTEMS GO. Starting live analysis...\n")
 
 
@@ -227,9 +246,10 @@ def classify_with_pytorch(yaw, pitch, distance):
 # Tuning constants — adjust if needed:
 TORSO_NEUTRAL_SPAN = 0.40   # Expected l_shoulder.x - r_shoulder.x when facing camera
 TORSO_MIN_VIS      = 0.40   # Minimum MediaPipe landmark visibility to trust the result
-POSE_SKIP_FRAMES   = 3      # Only run pose every N frames (performance optimisation)
+POSE_ENABLED       = True   # Set False to disable torso angle (saves ~150ms/frame per person)
+POSE_SKIP_FRAMES   = 8      # Only run pose every N frames (performance optimisation)
 _pose_frame_count  = {}
-FACE_SKIP_FRAMES   = 2      # Only run MediaPipe face every N frames per person
+FACE_SKIP_FRAMES   = 3      # Only run MediaPipe face every N frames per person
 _face_cache        = {}     # track_id → {idx, yaw, pitch, distance, dist_m}
 
 def get_torso_confidence(frame_bgr, track_id, x1, y1, x2, y2, frame_idx):
@@ -293,7 +313,7 @@ def get_torso_confidence(frame_bgr, track_id, x1, y1, x2, y2, frame_idx):
 
 
 
-def write_live_stats(session_s, passersby, engaged, active_ids, store):
+def write_live_stats(session_s, passersby, engaged, active_ids, store, qr_active_until=0.0):
     """Write current session metrics to a JSON file for the live dashboard."""
     currently_engaged = sum(
         1 for tid in active_ids
@@ -314,6 +334,7 @@ def write_live_stats(session_s, passersby, engaged, active_ids, store):
         "total_attention_s":   round(total_attention_s, 1),
         "active_people":       len(active_ids),
         "currently_engaged":   currently_engaged,
+        "qr_active_until":     qr_active_until,
     }
     try:
         with open(LIVE_STATS_PATH, "w") as f:
@@ -421,18 +442,65 @@ total_passersby    = 0
 total_engaged      = 0
 session_start      = time.time()
 
+# QR trigger: Unix timestamp until which the customer-facing ad screen shows the QR.
+# Single-slot pattern — while active, new 5s-crossings do NOT re-trigger.
+_qr_active_until   = 0.0
+QR_DURATION_S      = 10.0
+_perf_t0           = time.time()
+_perf_display_frames = 0
+_perf_analysis_frames = 0
+_perf_analysis_ms  = []
+
 
 # ═══════════════════════════════════════════════════════════════
 # SECTION 6: THE LIVE ANALYSIS LOOP
 # ═══════════════════════════════════════════════════════════════
+
+class _FrameReader:
+    """Background thread that drains the camera buffer and always serves the newest frame."""
+    def __init__(self, cap):
+        self._cap   = cap
+        self._frame = None
+        self._ok    = False
+        self._lock  = threading.Lock()
+        t = threading.Thread(target=self._run, daemon=True)
+        t.start()
+
+    def _run(self):
+        while True:
+            ok, frame = self._cap.read()
+            with self._lock:
+                self._ok    = ok
+                self._frame = frame
+
+    def read(self):
+        with self._lock:
+            return self._ok, (self._frame.copy() if self._frame is not None else None)
+
+_reader = _FrameReader(cap)
+
 while True:
-    ok, frame = cap.read()
-    if not ok:
+    ok, frame = _reader.read()
+    if not ok or frame is None:
         continue
 
     h, w, _ = frame.shape
     now = time.time()
     frame_count += 1
+    _perf_display_frames += 1
+
+    # Print performance report every 5 seconds
+    _perf_elapsed = now - _perf_t0
+    if _perf_elapsed >= 5.0:
+        disp_fps  = _perf_display_frames / _perf_elapsed
+        anal_fps  = _perf_analysis_frames / _perf_elapsed
+        avg_ms    = (sum(_perf_analysis_ms) / len(_perf_analysis_ms)) if _perf_analysis_ms else 0
+        print(f"[PERF] Display: {disp_fps:.1f}fps | Analysis: {anal_fps:.1f}fps | "
+              f"Avg analysis time: {avg_ms:.0f}ms | People tracked: {len(tracked_ids)}")
+        _perf_t0 = now
+        _perf_display_frames  = 0
+        _perf_analysis_frames = 0
+        _perf_analysis_ms     = []
 
     # Pinhole camera model — focal length in pixels, computed once from frame size
     if _focal_px is None:
@@ -441,7 +509,8 @@ while True:
     # Write live stats to JSON every 30 frames (~1 second)
     if frame_count % 30 == 0:
         write_live_stats(now - session_start, total_passersby,
-                         total_engaged, tracked_ids, store_name)
+                         total_engaged, tracked_ids, store_name,
+                         qr_active_until=_qr_active_until)
 
         # ── Hourly bucket check ──────────────────────────────────
         now_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
@@ -463,6 +532,9 @@ while True:
             _hour_attn_base = total_attn_now
 
     # ── LAYER 1: YOLO — Detect & Track all persons ──────────────
+    _analysis_t0 = time.time()
+    _perf_analysis_frames += 1
+
     yolo_results = yolo_model.track(frame, classes=[0], persist=True, verbose=False)
     tracked_ids  = set()
 
@@ -518,6 +590,7 @@ while True:
                     "frame_buffer":        [],
                     "frames_seen":         0,
                     "faces_found":         0,
+                    "last_prob":           0.0,   # most recent engage_prob for tier HUD
                 }
                 total_passersby += 1
 
@@ -597,11 +670,12 @@ while True:
                     continue
 
             # ── TORSO ANGLE CHECK (professor feedback #4) ─────────
-            # Run pose estimation on the full person crop (not just head).
-            # Returns 1.0 if facing camera, ~0.0 if fully sideways.
-            torso_conf, torso_span, torso_rel_yaw = get_torso_confidence(
-                frame, track_id, x1, y1, x2, y2, frame_count
-            )
+            if POSE_ENABLED:
+                torso_conf, torso_span, torso_rel_yaw = get_torso_confidence(
+                    frame, track_id, x1, y1, x2, y2, frame_count
+                )
+            else:
+                torso_conf, torso_span, torso_rel_yaw = 1.0, None, None
 
             # ── LAYER 3 & 4: PyTorch + Zone Check ─────────────────
             raw_engaged = False
@@ -619,6 +693,8 @@ while True:
                 engage_prob = engage_prob * z_conf
 
                 raw_engaged = engage_prob >= 0.50
+
+            state["last_prob"] = engage_prob
 
             # ── TEMPORAL FRAME BUFFER (prevents flickering & false positives)
             # Only mark as engaged if M out of last N frames agree.
@@ -648,17 +724,27 @@ while True:
                     and state["total_engage_s"] >= REWARD_THRESHOLD_S):
                 state["counted_as_engaged"] = True
                 total_engaged += 1
+                # Arm customer-facing QR screen — only if not already active (single-slot)
+                if now > _qr_active_until:
+                    _qr_active_until = now + QR_DURATION_S
 
             state["currently_engaged"] = is_engaged
             engaged_s = state["total_engage_s"]
 
             # ── Draw Bounding Box & Label ──────────────────────────
-            box_color = (0, 255, 0) if is_engaged else (100, 100, 100)
+            # Tier derived from raw PyTorch probability (before zone/torso weighting)
+            if engage_prob >= 0.80:
+                tier, box_color = "HIGH", (0, 255, 80)
+            elif engage_prob >= 0.50:
+                tier, box_color = "MED",  (0, 215, 255)
+            else:
+                tier, box_color = "LOW",  (100, 100, 100)
+
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
 
             label = f"ID:{track_id}"
             if yaw is not None:
-                label += f" {'ENGAGED' if is_engaged else 'AWAY'} ({engage_prob:.0%})"
+                label += f" {tier} ({engage_prob:.0%})"
             if engaged_s > 0:
                 label += f" | {engaged_s:.1f}s"
             cv2.putText(frame, label, (x1, y1 - 8),
@@ -685,8 +771,17 @@ while True:
     # ── LAYER 5: Analytics HUD ──────────────────────────────────
     session_s = now - session_start
     total_attn = sum(s.get("total_engage_s", 0.0) for s in person_engagement.values())
+
+    # Tier counters across currently-tracked people
+    n_high = sum(1 for tid in tracked_ids
+                 if person_engagement.get(tid, {}).get("last_prob", 0.0) >= 0.80)
+    n_med  = sum(1 for tid in tracked_ids
+                 if 0.50 <= person_engagement.get(tid, {}).get("last_prob", 0.0) < 0.80)
+    n_low  = sum(1 for tid in tracked_ids
+                 if person_engagement.get(tid, {}).get("last_prob", 0.0) < 0.50)
+
     hud_bg = frame.copy()
-    cv2.rectangle(hud_bg, (0, 0), (310, 135), (20, 20, 20), -1)
+    cv2.rectangle(hud_bg, (0, 0), (310, 158), (20, 20, 20), -1)
     cv2.addWeighted(hud_bg, 0.7, frame, 0.3, 0, frame)
 
     cv2.putText(frame, "VisionMetrics AI", (10, 22),
@@ -699,6 +794,8 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 130), 1)
     cv2.putText(frame, f"Total Attn:      {total_attn:.1f}s", (10, 119),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 255), 1)
+    cv2.putText(frame, f"High:{n_high}  Med:{n_med}  Low:{n_low}", (10, 142),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.50, (200, 200, 200), 1)
 
     # ── TRAINING MODE HUD (must be BEFORE imshow to appear on screen) ──
     if TRAINING_MODE:
@@ -709,6 +806,8 @@ while True:
         cv2.addWeighted(overlay, 0.8, frame, 0.2, 0, frame)
         cv2.putText(frame, f"[TRAINING MODE]  L=Look({look_n})  A=Away({away_n})  T=Exit training",
                     (8, h - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (0, 255, 100), 2)
+
+    _perf_analysis_ms.append((time.time() - _analysis_t0) * 1000)
 
     cv2.imshow("VisionMetrics AI — Retail Engagement System  [Q=Quit | T=Training Mode]", frame)
 

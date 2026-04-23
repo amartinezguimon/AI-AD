@@ -94,37 +94,39 @@ def train_model():
     X = df[['yaw', 'pitch', 'distance']].values
     y = df['label'].values
 
-    # ── DATA AUGMENTATION: Synthetic Far-Distance Samples ────────
-    # KEY INSIGHT: Yaw and Pitch are normalised (scale-invariant).
-    # A person looking straight at 0.5m gives the same Yaw ≈ 0 as
-    # at 4m. ONLY the 'distance' proxy (face_width) changes.
-    #
-    # So we can generate realistic "far distance" training examples
-    # by simply scaling down the distance column of existing rows.
-    # This is called "Domain Randomisation" in ML literature.
     import numpy as np
+
+    # ── SPLIT REAL DATA FIRST, then augment only the training portion ──
+    # IMPORTANT: Augmentation must happen AFTER the test split.
+    # If we augment first, the same yaw/pitch values (with only a scaled
+    # distance) appear in both train and test, making the test set trivially
+    # easy and inflating accuracy. Holding out real rows first prevents this.
+    X_real_tr, X_test, y_real_tr, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # ── DATA AUGMENTATION: Synthetic Far-Distance Samples (train only) ──
+    # KEY INSIGHT: Yaw and Pitch are normalised (scale-invariant).
+    # A person looking straight at 0.5m gives the same Yaw ~0 as at 4m.
+    # Only the distance proxy (normalised face width) changes.
+    # We generate realistic far-distance examples by scaling the distance
+    # column. This is called Domain Randomisation in ML literature.
     augmented_X = []
     augmented_y = []
-    for i, row in enumerate(X):
+    for row, label in zip(X_real_tr, y_real_tr):
         yaw, pitch, dist = row
-        # For each real sample, add 3 synthetic "far away" versions
-        for scale in [0.6, 0.35, 0.15]:   # ~1.5m, ~2.5m, ~4m equivalents
-            # Add a tiny bit of noise so rows aren't identical
+        for scale in [0.6, 0.35, 0.15]:   # roughly 1.5m, 2.5m, 4m
             noise = np.random.normal(0, 0.005, size=2)
             augmented_X.append([yaw + noise[0], pitch + noise[1], dist * scale])
-            augmented_y.append(y[i])
+            augmented_y.append(label)
 
     aug_X = np.array(augmented_X)
     aug_y = np.array(augmented_y)
 
-    # Combine real + synthetic data
-    X_combined = np.vstack([X, aug_X])
-    y_combined  = np.concatenate([y, aug_y])
+    X_train = np.vstack([X_real_tr, aug_X])
+    y_train = np.concatenate([y_real_tr, aug_y])
 
-    print(f"Original samples: {len(X)}  →  After augmentation: {len(X_combined)}")
-
-    # Split into 80% Training Data and 20% Testing Data
-    X_train, X_test, y_train, y_test = train_test_split(X_combined, y_combined, test_size=0.2, random_state=42)
+    print(f"Original samples: {len(X)}  |  Test (real only): {len(X_test)}  |  Train after augmentation: {len(X_train)}")
 
 
     train_dataset = EngagementDataset(X_train, y_train)

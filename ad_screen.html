@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>VisionMetrics — Summer Sale</title>
+<style>
+  :root {
+    --bg1: #0f1020;
+    --bg2: #1a1340;
+    --accent: #ffcc33;
+    --accent2: #ff5e87;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #fff;
+    background: radial-gradient(circle at 30% 20%, var(--bg2), var(--bg1) 70%);
+  }
+  .stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4vh;
+  }
+  .brand {
+    position: absolute;
+    top: 4vh;
+    left: 5vw;
+    font-size: 1.6vw;
+    letter-spacing: 0.4em;
+    opacity: 0.7;
+  }
+  .headline {
+    font-size: 9vw;
+    font-weight: 900;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 60px rgba(255, 94, 135, 0.25);
+  }
+  .tagline {
+    margin-top: 3vh;
+    font-size: 3vw;
+    font-weight: 300;
+    opacity: 0.85;
+  }
+  .discount {
+    margin-top: 5vh;
+    font-size: 5vw;
+    font-weight: 700;
+    padding: 1.2vh 4vw;
+    border: 3px solid var(--accent);
+    border-radius: 99px;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1.0); box-shadow: 0 0 0 rgba(255,204,51,0.6); }
+    50%      { transform: scale(1.04); box-shadow: 0 0 40px rgba(255,204,51,0.5); }
+  }
+
+  /* QR overlay */
+  .qr-box {
+    position: absolute;
+    bottom: 5vh;
+    right: 5vw;
+    background: #fff;
+    color: #111;
+    border-radius: 16px;
+    padding: 2vh 2vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2vh;
+    opacity: 0;
+    transform: translateY(30px) scale(0.9);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    pointer-events: none;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .qr-box.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .qr-box img {
+    width: 18vw;
+    max-width: 260px;
+    height: auto;
+    display: block;
+  }
+  .qr-label {
+    font-weight: 700;
+    font-size: 1.4vw;
+    text-align: center;
+  }
+  .qr-sub {
+    font-size: 1vw;
+    opacity: 0.7;
+  }
+  .qr-countdown {
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    color: var(--accent2);
+  }
+
+  .status {
+    position: absolute;
+    bottom: 2vh;
+    left: 2vw;
+    font-size: 0.9vw;
+    opacity: 0.3;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="brand">VISIONMETRICS · STORE</div>
+    <div class="headline">SUMMER SALE</div>
+    <div class="tagline">New season. New looks. Walk in and save.</div>
+    <div class="discount">UP TO 40% OFF</div>
+
+    <div id="qrBox" class="qr-box">
+      <img src="data/qr_discount.png" alt="Discount QR" />
+      <div class="qr-label">Scan for 20% OFF</div>
+      <div class="qr-sub">Offer expires in <span id="qrCountdown" class="qr-countdown">10</span>s</div>
+    </div>
+
+    <div class="status" id="status">waiting…</div>
+  </div>
+
+<script>
+  const qrBox      = document.getElementById('qrBox');
+  const qrCountEl  = document.getElementById('qrCountdown');
+  const statusEl   = document.getElementById('status');
+
+  async function tick() {
+    try {
+      const r = await fetch('data/live_stats.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const j = await r.json();
+      const nowSec = Date.now() / 1000;
+      const until  = j.qr_active_until || 0;
+      const remain = until - nowSec;
+      if (remain > 0) {
+        qrBox.classList.add('visible');
+        qrCountEl.textContent = Math.ceil(remain);
+      } else {
+        qrBox.classList.remove('visible');
+      }
+      statusEl.textContent = `live · ${j.currently_engaged || 0} engaged · ${j.active_people || 0} tracked`;
+    } catch (e) {
+      statusEl.textContent = 'stats unavailable — serve via: python -m http.server 8080';
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ python src/utils/calibrate.py          # one-time per store setup
 python src/inference/main.py           # live analysis
 python src/training/train.py           # retrain PyTorch model
 python src/training/data_collector.py  # collect labelled training data
-python -m http.server 8080             # serve dashboard at localhost:8080/dashboard.html
+python -m http.server 8080             # serve dashboard + ad screen at localhost:8080
 ```
 
 ---
@@ -32,6 +32,8 @@ python -m http.server 8080             # serve dashboard at localhost:8080/dashb
 | `data/live_stats.json` | Live session metrics for dashboard |
 | `configs/store_config.json` | Per-store calibration output |
 | `dashboard.html` | Chart.js live analytics dashboard |
+| `ad_screen.html` | Customer-facing ad screen with QR overlay (Screen 2 in demo) |
+| `data/qr_discount.png` | Static QR code encoding `https://visionmetrics.ai/discount/20` |
 
 ---
 
@@ -60,14 +62,16 @@ engaged = engage_prob >= 0.50
 CAMERA_FOV_H_DEG  = 70.0   # pinhole camera model FOV
 FACE_WIDTH_M      = 0.16   # average face width in metres
 YOLO_CONF_MIN     = 0.45
-ASPECT_RATIO_MIN  = 0.75
+ASPECT_RATIO_MIN  = 0.75   # CRITICAL: keep at 0.75 — lower values cause ghost detections
 GHOST_FRAME_TRIAL = 20     # frames before non-face track is blacklisted
 FRAME_BUFFER_SIZE = 3
 FRAME_ENGAGE_MIN  = 1
 TORSO_NEUTRAL_SPAN = 0.40
-POSE_SKIP_FRAMES  = 3
-FACE_SKIP_FRAMES  = 2      # MediaPipe face runs every 2 frames per person (perf fix)
+POSE_ENABLED      = True   # set False to save ~150ms/frame per person
+POSE_SKIP_FRAMES  = 8      # run pose every 8 frames per person
+FACE_SKIP_FRAMES  = 3      # run MediaPipe face every 3 frames per person
 REWARD_THRESHOLD_S = 5.0
+QR_DURATION_S     = 10.0   # seconds QR stays visible on ad_screen.html
 SOFT_MARGIN       = 0.30   # zone_confidence decay width
 ```
 
@@ -136,6 +140,20 @@ This caused systematic zone mismatch — calibrated boundaries didn't match infe
 
 ---
 
+## 3-Screen Demo Setup
+
+| Screen | URL / Window | Audience |
+|---|---|---|
+| Screen 1 | `python src/inference/main.py` (OpenCV window) | Operator / professor |
+| Screen 2 | `localhost:8080/ad_screen.html` | Customer-facing ad with QR overlay |
+| Screen 3 | `localhost:8080/dashboard.html` | Manager / analytics |
+
+**QR trigger:** when any person crosses 5s engagement, `_qr_active_until = now + 10s` is written to `live_stats.json`. ad_screen.html polls every 1s and fades the QR in/out. Only one QR active at a time regardless of how many people are engaged.  
+**Re-trigger in demo:** step fully out of frame (new track ID) + wait 10s cooldown, then look again for 5s.  
+**Browser on same laptop costs ~1fps** — use a second device on same WiFi for best performance.
+
+---
+
 ## Dashboard (dashboard.html)
 
 Run via: `python -m http.server 8080` → `localhost:8080/dashboard.html`  
@@ -152,16 +170,34 @@ Weekly table logic:
 - **This week vs last week**: Mon–today summed vs same days last week
 
 New data files written by main.py:
+- `data/live_stats.json` — written every 30 frames; includes `qr_active_until` Unix timestamp for ad_screen.html
 - `data/hourly_log.json` — appended each time clock hour changes: `{hour, date, engaged, passersby, rate, attention_s}`
 - `data/session_history.json` — appended at session end: `{date, store, start_iso, end_iso, duration_min, passersby, engaged, rate, attention_s}`
 - `data/session_log.csv` — same as session_history but CSV backup
 
 ## Performance Notes
 
-- With 20+ people in frame, the bottleneck is MediaPipe Face (runs per person per frame).
-- **Fix applied:** `FACE_SKIP_FRAMES=2` — face angles cached and reused every other frame per person. Same pattern as `POSE_SKIP_FRAMES=3` already in place for pose.
-- If still laggy with many people, increase `FACE_SKIP_FRAMES` to 3 in main.py.
+- Tested with Camo Studio virtual camera (phone via USB) at 720p. Realistic throughput: ~3fps with 1-2 people on CPU-only laptop.
+- **Fix 1:** `FACE_SKIP_FRAMES=3` — face angles cached and reused every 3 frames per person.
+- **Fix 2:** `POSE_SKIP_FRAMES=8` — pose/torso cached every 8 frames per person (pose changes over seconds, not frames).
+- **Fix 3:** `_FrameReader` background thread — continuously drains Camo's camera buffer so main loop always gets the newest frame. Without this, 700ms processing × 30fps camera = 21-frame backlog causing severe stalls.
+- **Critical:** keep `ASPECT_RATIO_MIN=0.75`. Lowering it (e.g. to 0.40) causes wide background objects to pass the YOLO filter, triggering MediaPipe on ghost detections and halving FPS.
+- **Demo tip:** run browser tabs (dashboard + ad screen) on a second device at `http://YOUR_IP:8080/` — Chrome on the same laptop competes for CPU and costs ~1fps.
+- To check real camera FPS: `python -c "import cv2; cap=cv2.VideoCapture(2); print(cap.get(cv2.CAP_PROP_FPS)); cap.release()"`.
 - Production scaling options: (a) record video then process offline, (b) run on GPU server.
+
+---
+
+## Visual Upgrades Status (DEMO_UPGRADES_PLAN.md)
+
+| Item | Status |
+|---|---|
+| #1 Reward overlay banner (operator screen) | ❌ Dropped — operator screen not part of real product |
+| #2 Engagement duration ring | Pending |
+| #3 Gaze direction arrow | Pending |
+| #4 Engagement tier labels HIGH/MED/LOW | ✅ Complete |
+| #5 Sound cue on reward | Pending |
+| #6 Customer-facing ad screen + QR | ✅ Complete |
 
 ---
 

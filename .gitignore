@@ -33,3 +33,12 @@ configs/store_config.json
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ─── Claude internal ─────────────────────────────────────────
+.claude/
+
+# ─── Word temp files ─────────────────────────────────────────
+docs/~$*
+
+# ─── Remotion node_modules ───────────────────────────────────
+remotion-demo/node_modules/
