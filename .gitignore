@@ -37,8 +37,8 @@ desktop.ini
 # ─── Claude internal ─────────────────────────────────────────
 .claude/
 
-# ─── Word temp files ─────────────────────────────────────────
-docs/~$*
+# ─── Docs folder (internal — not for submission) ─────────────
+docs/
 
 # ─── Remotion node_modules ───────────────────────────────────
 remotion-demo/node_modules/
