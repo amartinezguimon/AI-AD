@@ -1,23 +1,28 @@
 """
-main.py — VisionMetrics AI: The Grand Integrator
--------------------------------------------------
-PURPOSE:
-    This is the final, complete system. It orchestrates all components:
+main.py — VisionMetrics AI: Live Inference Pipeline
+-----------------------------------------------------
+Orchestrates the full 7-layer engagement detection system:
 
-    Layer 1: YOLOv8         → Detects and TRACKS each person by a unique ID.
-    Layer 2: MediaPipe      → Extracts real-time head angles (Yaw, Pitch, Distance).
-    Layer 3: PyTorch Brain  → Classifies if the person is "Engaged" or "Not Engaged".
-    Layer 4: Store Config   → Defines the physical boundaries of THIS store's display.
-    Layer 5: Analytics HUD  → Displays live metrics on screen.
-    Layer 6: Reward Trigger → Fires a live "discount" overlay after 5 seconds of engagement.
+    Layer 1: YOLOv8n        — Detects and tracks persons by unique ID.
+    Layer 2: Head Crop      — Crops top 45% of bounding box, 4x upscale for range.
+    Layer 3: MediaPipe Face — Extracts yaw, pitch, and normalised face width.
+    Layer 4: PyTorch MLP    — Classifies Engaged vs Away (probability score).
+    Layer 5: MediaPipe Pose — Torso orientation as a damping factor.
+    Layer 6: Zone Filter    — Soft engagement zone confidence multiplier.
+    Layer 7: Frame Buffer   — Temporal smoothing over the last 3 frames.
+
+Outputs:
+    - OpenCV operator window with per-person HUD overlay.
+    - data/live_stats.json for the live dashboard.
+    - Customer-facing QR trigger after 5 seconds of engagement.
 
 HOW TO RUN:
     python src/inference/main.py
 
-REQUIREMENTS:
-    - Run src/training/data_collector.py first to collect data.
-    - Run src/training/train.py next to generate the AI brain.
-    - (Optional) Run src/utils/calibrate.py to generate a store-specific config.
+PREREQUISITES:
+    - Run src/training/data_collector.py to collect labelled data.
+    - Run src/training/train.py to train the engagement model.
+    - (Optional) Run src/utils/calibrate.py for store-specific zone config.
 """
 
 import csv
@@ -69,27 +74,25 @@ class EngagementNet(nn.Module):
 
 
 # ═══════════════════════════════════════════════════════════════
-# SECTION 3: SYSTEM STARTUP — Load all AI brains and configs
+# SECTION 3: SYSTEM STARTUP — Load models and configs
 # ═══════════════════════════════════════════════════════════════
 print("\n" + "="*60)
 print("  VISIONMETRICS AI — Retail Engagement System")
 print("="*60)
 
-# -- Download face model if needed --
+# Download MediaPipe face model on first run
 if not os.path.exists(MODEL_FACE_PATH):
-    print("⬇️  Downloading Face Landmarker model (one-time)...")
+    print("Downloading Face Landmarker model (one-time)...")
     urllib.request.urlretrieve(
         "https://storage.googleapis.com/mediapipe-models/face_landmarker"
         "/face_landmarker/float16/latest/face_landmarker.task",
         MODEL_FACE_PATH
     )
 
-# -- Load YOLO (Person Detector + Tracker) --
-print("🔍 Loading YOLOv8 person detector...")
+print("Loading YOLOv8 person detector...")
 yolo_model = YOLO(MODEL_YOLO_PATH)
 
-# -- Load MediaPipe (Face Angle Extractor) --
-print("🧩 Loading MediaPipe Face Landmarker...")
+print("Loading MediaPipe Face Landmarker...")
 base_opts   = python.BaseOptions(model_asset_path=MODEL_FACE_PATH)
 face_opts   = vision.FaceLandmarkerOptions(
     base_options=base_opts, num_faces=3,
@@ -98,10 +101,9 @@ face_opts   = vision.FaceLandmarkerOptions(
 )
 face_detector = vision.FaceLandmarker.create_from_options(face_opts)
 
-# -- Load MediaPipe Pose (Torso Angle Estimator) --
-print("🦾 Loading MediaPipe Pose estimator (torso angle)...")
+print("Loading MediaPipe Pose estimator...")
 if not os.path.exists(MODEL_POSE_PATH):
-    print("⬇️  Downloading Pose Landmarker model (one-time)...")
+    print("Downloading Pose Landmarker model (one-time)...")
     urllib.request.urlretrieve(
         "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
         "pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
@@ -117,54 +119,51 @@ pose_options = vision.PoseLandmarkerOptions(
 )
 pose_detector = vision.PoseLandmarker.create_from_options(pose_options)
 
-# -- Load PyTorch Engagement Classifier --
-print("🧠 Loading PyTorch Engagement Brain...")
+print("Loading PyTorch engagement classifier...")
 if not os.path.exists(MODEL_ENGAGE_PATH):
-    print(f"❌ ERROR: {MODEL_ENGAGE_PATH} not found! Please run train.py first.")
+    print(f"Error: {MODEL_ENGAGE_PATH} not found. Run src/training/train.py first.")
     exit()
 
 engage_model = EngagementNet()
 engage_model.load_state_dict(torch.load(MODEL_ENGAGE_PATH, weights_only=True))
 engage_model.eval()
 
-# -- Load Store Config (for engagement zone boundaries) --
+# Load store calibration config (optional — PyTorch model runs without it)
 store_config  = None
 engagement_zone = None
 if os.path.exists(STORE_CONFIG_PATH):
     with open(STORE_CONFIG_PATH, "r") as f:
         _raw = json.load(f)
     _name = _raw.get("store_name", "Unknown")
-    print(f"\n📁 Found saved calibration: '{_name}'")
+    print(f"\nFound saved calibration: '{_name}'")
     print("   [1] Use this calibration")
-    print("   [2] Skip calibration (PyTorch only, no zone filter)")
+    print("   [2] Skip calibration (PyTorch model only, no zone filter)")
     print("   [3] Create new calibration (quit and run: python src/utils/calibrate.py)")
     _choice = input("\n   Your choice (1/2/3): ").strip()
     if _choice == "1":
         store_config    = _raw
         engagement_zone = _raw.get("derived")
-        print(f"✅ Using calibration: '{_name}'")
+        print(f"Using calibration: '{_name}'")
     elif _choice == "3":
-        print("\n   Run:  python src/utils/calibrate.py")
-        print("   Then re-run main.py.\n")
+        print("Run: python src/utils/calibrate.py, then re-run main.py.")
         exit()
     else:
-        print("⚠️  Skipping calibration. Using PyTorch model only (no zone filtering).")
+        print("Skipping calibration. Using PyTorch model only (no zone filtering).")
 else:
-    print("⚠️  No store config found. Using PyTorch model only (no zone filtering).")
-    print("   Run src/utils/calibrate.py to create a store-specific config.")
+    print("No store config found. Using PyTorch model only.")
+    print("Run src/utils/calibrate.py to create a store-specific config.")
 
-# -- Open Camera --
-print(f"📷 Opening camera {CAMERA_INDEX}...")
+print(f"Opening camera {CAMERA_INDEX}...")
 cap = cv2.VideoCapture(CAMERA_INDEX)
 if not cap.isOpened():
-    print(f"❌ Camera {CAMERA_INDEX} not found. Try changing CAMERA_INDEX.")
+    print(f"Camera {CAMERA_INDEX} not found. Change CAMERA_INDEX in this file.")
     exit()
 
 _cam_w   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 _cam_h   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 _cam_fps = cap.get(cv2.CAP_PROP_FPS)
-print(f"📐 Camera resolution: {_cam_w}x{_cam_h} @ {_cam_fps:.0f}fps")
-print("\n✅ ALL SYSTEMS GO. Starting live analysis...\n")
+print(f"Camera resolution: {_cam_w}x{_cam_h} @ {_cam_fps:.0f}fps")
+print("\nAll models loaded. Starting live analysis...\n")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -300,7 +299,7 @@ def get_torso_confidence(frame_bgr, track_id, x1, y1, x2, y2, frame_idx):
     span       = l_s.x - r_s.x
     torso_conf = max(0.0, min(span, TORSO_NEUTRAL_SPAN)) / TORSO_NEUTRAL_SPAN
 
-    # Relative neck-to-torso yaw (professor feedback: torso angle − neck angle).
+    # Relative neck-to-torso yaw: how far the head is turned relative to the body axis.
     # Pose landmark 0 is the nose — same crop space as the shoulders.
     shoulder_mid_x = (l_s.x + r_s.x) / 2.0
     nose_lm        = lm[0]
@@ -669,7 +668,7 @@ while True:
                         del person_engagement[track_id]
                     continue
 
-            # ── TORSO ANGLE CHECK (professor feedback #4) ─────────
+            # ── TORSO ANGLE CHECK ─────────────────────────────────
             if POSE_ENABLED:
                 torso_conf, torso_span, torso_rel_yaw = get_torso_confidence(
                     frame, track_id, x1, y1, x2, y2, frame_count
@@ -751,8 +750,7 @@ while True:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 1)
 
             # ── LIVE DEBUG PANEL ───────────────────────────────────
-            # Shows the raw AI numbers so you can see exactly what
-            # is being measured and why ENGAGED fires or not.
+            # Displays raw signal values below each bounding box.
             if yaw is not None:
                 debug_y = y2 + 18
                 if debug_y + 20 > h:
@@ -821,11 +819,11 @@ while True:
 
     elif TRAINING_MODE and key == ord('l') and last_yaw is not None:
         training_rows.append([last_yaw, last_pitch, last_distance, 1])
-        print(f"  ✅ Saved LOOK  (total: {len(training_rows)})")
+        print(f"  Saved LOOK  (total: {len(training_rows)})")
 
     elif TRAINING_MODE and key == ord('a') and last_yaw is not None:
         training_rows.append([last_yaw, last_pitch, last_distance, 0])
-        print(f"  ✅ Saved AWAY  (total: {len(training_rows)})")
+        print(f"  Saved AWAY  (total: {len(training_rows)})")
 
     elif key == ord('q'):
         break
@@ -850,7 +848,7 @@ if training_rows:
     else:
         combined = new_df
     combined.to_csv(TRAINING_CSV_PATH, index=False)
-    print(f"\n✅ Training data saved: {len(training_rows)} new rows → {TRAINING_CSV_PATH}")
+    print(f"\nTraining data saved: {len(training_rows)} new rows -> {TRAINING_CSV_PATH}")
     print(f"   Total rows in file: {len(combined)}")
 
 print("\n" + "="*60)

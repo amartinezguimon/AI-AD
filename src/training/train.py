@@ -1,19 +1,22 @@
 """
-train.py — Deep Learning Engine for Engagement Analysis
---------------------------------------------------------------
-PURPOSE:
-    This script fulfills the core academic requirement of building a
-    Custom Deep Learning Model using PyTorch. 
-    
-    It reads the 'universal' human data we just collected in the CSV, 
-    and trains a Multi-Layer Perceptron (Neural Network) to understand
-    the mathematical relationship between Yaw, Pitch, and Distance.
+train.py — PyTorch MLP Training Script
+---------------------------------------
+Trains a binary engagement classifier on labelled head-pose data.
+
+Inputs  : data/engagement_data.csv  (columns: yaw, pitch, distance, label)
+Output  : models/engagement_model.pth
+
+Architecture : 3 -> 16 -> 8 -> 1  (ReLU activations, Sigmoid output)
+Loss         : Binary Cross Entropy
+Optimiser    : Adam (lr=0.005, 50 epochs, batch size 8)
+
+Data strategy:
+    Real rows are split BEFORE augmentation to prevent leakage.
+    Augmentation generates synthetic far-distance samples by scaling the
+    distance column (x0.6, x0.35, x0.15) on training rows only.
 
 HOW TO RUN:
     python src/training/train.py
-
-OUTPUT:
-    models/engagement_model.pth  ← This is our "Artificial Brain".
 """
 
 import os
@@ -46,23 +49,19 @@ class EngagementDataset(Dataset):
 # ─────────────────────────────────────────────
 class EngagementNet(nn.Module):
     """
-    A Deep Neural Network (Multi-Layer Perceptron)
-    Input:  3 features (Yaw, Pitch, Distance)
-    Output: 1 value between 0 and 1 (Probability of Looking)
+    Multi-Layer Perceptron for binary engagement classification.
+    Input:  3 features (yaw, pitch, normalised face width as distance proxy)
+    Output: scalar in [0, 1] — probability that the person is engaged
     """
     def __init__(self):
         super(EngagementNet, self).__init__()
-        
-        # Three layers of "Neurons"
         self.network = nn.Sequential(
-            nn.Linear(3, 16),      # Input Layer: 3 inputs -> 16 hidden neurons
-            nn.ReLU(),             # Activation Function (adds non-linear thinking)
-            
-            nn.Linear(16, 8),      # Hidden Layer: 16 -> 8 neurons
+            nn.Linear(3, 16),      # input layer
             nn.ReLU(),
-            
-            nn.Linear(8, 1),       # Output Layer: 8 -> 1 result
-            nn.Sigmoid()           # Forces the final answer to be between 0 (Away) and 1 (Look)
+            nn.Linear(16, 8),      # hidden layer
+            nn.ReLU(),
+            nn.Linear(8, 1),       # output layer
+            nn.Sigmoid()           # squashes output to [0, 1] probability
         )
 
     def forward(self, x):
@@ -75,22 +74,15 @@ def train_model():
     csv_path = "data/engagement_data.csv"
     model_path = "models/engagement_model.pth"
 
-    # -- Error Checking --
     if not os.path.exists(csv_path):
-        print(f"❌ Error: Cannot find {csv_path}. Please run data_collector.py first.")
+        print(f"Error: {csv_path} not found. Run data_collector.py first.")
         return
 
-    # -- Load the Data using Pandas --
-    print("\n📊 Loading data from CSV...")
-    df = pd.read_csv(csv_path)
-    
-    # We drop any rows with NaN just in case the camera glitched
-    df = df.dropna()
-
-    print(f"Total valid samples: {len(df)}")
+    print("\nLoading data...")
+    df = pd.read_csv(csv_path).dropna()
+    print(f"Valid samples: {len(df)}")
     print(df['label'].value_counts())
 
-    # Separate Features (Inputs) and Labels (Answers)
     X = df[['yaw', 'pitch', 'distance']].values
     y = df['label'].values
 
@@ -132,65 +124,44 @@ def train_model():
     train_dataset = EngagementDataset(X_train, y_train)
     test_dataset  = EngagementDataset(X_test, y_test)
 
-    # DataLoaders pump data into the AI in small batches
     train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
 
-    # -- Initialize the AI --
-    print("\n🧠 Initializing the Neural Network...")
-    ai_brain = EngagementNet()
-    
-    # Standard configuration for Binary Classification (0 or 1)
-    loss_function = nn.BCELoss()      # Binary Cross Entropy
-    optimizer = optim.Adam(ai_brain.parameters(), lr=0.005)
+    print("\nInitialising network...")
+    model = EngagementNet()
+    loss_function = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.005)
 
-    # -- The Training Loop --
     epochs = 50
-    print("\n🚀 Starting PyTorch Training Process...")
-    print("--------------------------------------------------")
-
+    print("Training...")
+    print("-" * 50)
     for epoch in range(epochs):
-        ai_brain.train()
+        model.train()
         total_loss = 0
-
         for batch_x, batch_y in train_loader:
-            # 1. Forward Pass (Ask the AI to guess)
-            predictions = ai_brain(batch_x)
-            
-            # 2. Calculate the Error (How wrong was it?)
+            predictions = model(batch_x)
             loss = loss_function(predictions, batch_y)
-            
-            # 3. Backward Pass (Learn from the mistake)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
             total_loss += loss.item()
-
-        # Print progress every 10 epochs
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch [{epoch+1}/{epochs}]  --->  Error (Loss): {total_loss/len(train_loader):.4f}")
+            print(f"Epoch [{epoch+1}/{epochs}]  loss: {total_loss/len(train_loader):.4f}")
 
-    # -- Evaluate Accuracy on the Test Set (The 20% it has never seen) --
-    ai_brain.eval()
+    # Evaluate on the held-out real test set
+    model.eval()
     with torch.no_grad():
-        test_inputs = torch.tensor(X_test, dtype=torch.float32)
+        test_inputs  = torch.tensor(X_test, dtype=torch.float32)
         test_answers = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
-        
-        predictions = ai_brain(test_inputs)
-        # If probability is > 50%, we count it as a "Look" (1)
-        predictions_rounded = predictions.round() 
-        
-        correct = (predictions_rounded == test_answers).sum().item()
-        accuracy = (correct / len(y_test)) * 100
+        predictions  = model(test_inputs)
+        correct      = (predictions.round() == test_answers).sum().item()
+        accuracy     = (correct / len(y_test)) * 100
 
-    print("--------------------------------------------------")
-    print(f"🎯 Final AI Accuracy on unseen data: {accuracy:.2f}%")
+    print("-" * 50)
+    print(f"Test accuracy (real rows only): {accuracy:.2f}%")
 
-    # -- Save the Artificial Brain --
     os.makedirs("models", exist_ok=True)
-    torch.save(ai_brain.state_dict(), model_path)
-    print(f"\n✅ SUCCESS: Artificial Brain trained and safely saved to {model_path}.")
-    print("This file can now be used in any store automatically!")
+    torch.save(model.state_dict(), model_path)
+    print(f"Model saved to {model_path}")
 
 if __name__ == "__main__":
     train_model()
