@@ -40,5 +40,10 @@ desktop.ini
 # ─── Docs folder (internal — not for submission) ─────────────
 docs/
 
+# ─── Internal working files ───────────────────────────────────
+CONTEXT.md
+DEMO_UPGRADES_PLAN.md
+project_guidelines.md
+
 # ─── Remotion node_modules ───────────────────────────────────
 remotion-demo/node_modules/
