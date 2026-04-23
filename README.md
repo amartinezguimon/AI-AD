@@ -132,15 +132,9 @@ python src/training/train.py
 
 ### Reproduce Results (Evaluation Metrics & Figures)
 ```bash
-# Re-runs training on the existing dataset and generates all evaluation artefacts:
-#   docs/figures/train_curves.png       — loss and accuracy curves
-#   docs/figures/confusion_matrix.png   — confusion matrix on real test set
-#   docs/figures/roc_curve.png          — ROC curve vs logistic regression baseline
-#   docs/figures/per_distance_accuracy.png
-#   docs/figures/metrics.json           — all numeric metrics (accuracy, F1, AUC)
-#   docs/figures/classification_report.txt
 python src/training/train_report.py
 ```
+Generates under `figures/`: training curves, confusion matrix, ROC curve, per-distance accuracy, `metrics.json`, and `classification_report.txt`.
 
 The test set is held out from **real rows only** before any augmentation, preventing leakage. Expected results on the 226-row test set: accuracy ~99.6%, F1 ~0.996, ROC-AUC ~0.999.
 
@@ -154,7 +148,13 @@ python src/inference/main.py
 ```
 Then open **http://localhost:8080/dashboard.html** in your browser.
 
-> ⚠️ Do NOT open `dashboard.html` as a `file://` URL — `fetch()` will be blocked by browser CORS policy.
+> Do NOT open `dashboard.html` as a `file://` URL — `fetch()` will be blocked by browser CORS policy.
+
+### Customer Ad Screen
+```bash
+python -m http.server 8080
+```
+Open **http://localhost:8080/ad_screen.html** on a second screen facing the customer. When a person stays engaged for 5 seconds, `main.py` triggers the QR discount overlay automatically on this screen.
 
 ---
 
