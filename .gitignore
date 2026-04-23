@@ -45,5 +45,5 @@ CONTEXT.md
 DEMO_UPGRADES_PLAN.md
 project_guidelines.md
 
-# ─── Remotion node_modules ───────────────────────────────────
-remotion-demo/node_modules/
+# ─── Remotion demo (internal) ────────────────────────────────
+remotion-demo/
