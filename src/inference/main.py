@@ -51,7 +51,8 @@ MODEL_POSE_PATH    = "models/pose_landmarker_lite.task"
 MODEL_ENGAGE_PATH  = "models/engagement_model.pth"
 STORE_CONFIG_PATH  = "configs/store_config.json"
 SESSION_LOG_PATH   = "data/session_log.csv"
-REWARD_THRESHOLD_S = 5.0        # Seconds of engagement before reward triggers
+ENGAGE_COUNT_THRESHOLD_S = 2.0  # Seconds before counting as engaged in the dashboard
+REWARD_THRESHOLD_S       = 5.0  # Seconds before the QR discount screen triggers
 CAMERA_FOV_H_DEG  = 70.0       # Horizontal FOV (degrees) — typical webcam / smartphone
 FACE_WIDTH_M      = 0.16       # Average adult face width in metres (pinhole model)
 os.makedirs("data",   exist_ok=True)
@@ -312,7 +313,7 @@ def get_torso_confidence(frame_bgr, track_id, x1, y1, x2, y2, frame_idx):
 
 
 
-def write_live_stats(session_s, passersby, engaged, active_ids, store, qr_active_until=0.0):
+def write_live_stats(session_s, passersby, engaged, active_ids, store, qr_active_until=0.0, qr_count=0):
     """Write current session metrics to a JSON file for the live dashboard."""
     currently_engaged = sum(
         1 for tid in active_ids
@@ -334,6 +335,7 @@ def write_live_stats(session_s, passersby, engaged, active_ids, store, qr_active
         "active_people":       len(active_ids),
         "currently_engaged":   currently_engaged,
         "qr_active_until":     qr_active_until,
+        "qr_trigger_count":    qr_count,
     }
     try:
         with open(LIVE_STATS_PATH, "w") as f:
@@ -444,6 +446,7 @@ session_start      = time.time()
 # QR trigger: Unix timestamp until which the customer-facing ad screen shows the QR.
 # Single-slot pattern — while active, new 5s-crossings do NOT re-trigger.
 _qr_active_until   = 0.0
+_qr_trigger_count  = 0
 QR_DURATION_S      = 10.0
 _perf_t0           = time.time()
 _perf_display_frames = 0
@@ -509,7 +512,8 @@ while True:
     if frame_count % 30 == 0:
         write_live_stats(now - session_start, total_passersby,
                          total_engaged, tracked_ids, store_name,
-                         qr_active_until=_qr_active_until)
+                         qr_active_until=_qr_active_until,
+                         qr_count=_qr_trigger_count)
 
         # ── Hourly bucket check ──────────────────────────────────
         now_hour = datetime.now().replace(minute=0, second=0, microsecond=0)
@@ -718,14 +722,17 @@ while True:
                     state["engage_start"] = None
                 state["total_engage_s"] = state["cumulative_engage_s"]
 
-            # Count this person once as "engaged" when they cross the 5s threshold
+            # Count this person once as "engaged" when they cross the 2s threshold
             if (not state["counted_as_engaged"]
-                    and state["total_engage_s"] >= REWARD_THRESHOLD_S):
+                    and state["total_engage_s"] >= ENGAGE_COUNT_THRESHOLD_S):
                 state["counted_as_engaged"] = True
                 total_engaged += 1
-                # Arm customer-facing QR screen — only if not already active (single-slot)
-                if now > _qr_active_until:
-                    _qr_active_until = now + QR_DURATION_S
+
+            # Trigger QR discount screen once they cross the 5s threshold
+            if (state["total_engage_s"] >= REWARD_THRESHOLD_S
+                    and now > _qr_active_until):
+                _qr_active_until = now + QR_DURATION_S
+                _qr_trigger_count += 1
 
             state["currently_engaged"] = is_engaged
             engaged_s = state["total_engage_s"]
@@ -788,7 +795,7 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1)
     cv2.putText(frame, f"Total Passersby: {total_passersby}", (10, 73),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 220, 220), 1)
-    cv2.putText(frame, f"Engaged (5s+):   {total_engaged}", (10, 96),
+    cv2.putText(frame, f"Engaged (2s+):   {total_engaged}", (10, 96),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 130), 1)
     cv2.putText(frame, f"Total Attn:      {total_attn:.1f}s", (10, 119),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 255), 1)
