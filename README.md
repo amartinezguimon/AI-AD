@@ -72,13 +72,28 @@ VisionMetrics measures how people interact with physical advertisements (store w
 
 ## Three Runnable Components
 
-| # | What it does | Command |
-|---|---|---|
-| 1 | **Live inference** — real-time engagement detection from camera | `python src/inference/main.py` |
-| 2 | **Reproduce metrics** — retrains model, generates figures & classification report | `python src/training/train_report.py` |
-| 3 | **Live dashboard** — browser analytics view (requires the inference engine running) | `python -m http.server 8080` → open `http://localhost:8080/dashboard.html` |
+Run all three together for the full demo:
 
-All three work after the Quick Start setup below (install once, then run any component).
+**Terminal 1 — AI engine (required for everything below)**
+```bash
+python src/inference/main.py
+```
+
+**Terminal 2 — Web server (required for dashboard and ad screen)**
+```bash
+python -m http.server 8080
+```
+
+Then open two browser tabs:
+
+| # | What it does | URL |
+|---|---|---|
+| 1 | **Live Dashboard** — real-time analytics, charts, foot traffic | `http://localhost:8080/dashboard.html` |
+| 2 | **Ad Screen** — customer-facing display, QR overlay triggers after 5s engagement | `http://localhost:8080/ad_screen.html` |
+
+> Do NOT open the HTML files directly from your file system (`file://`) — use the URLs above or `fetch()` will be blocked by the browser.
+
+All three work after the Quick Start setup below (install once, then run).
 
 ---
 
