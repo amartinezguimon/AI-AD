@@ -70,6 +70,18 @@ VisionMetrics measures how people interact with physical advertisements (store w
 
 ---
 
+## Three Runnable Components
+
+| # | What it does | Command |
+|---|---|---|
+| 1 | **Live inference** — real-time engagement detection from camera | `python src/inference/main.py` |
+| 2 | **Reproduce metrics** — retrains model, generates figures & classification report | `python src/training/train_report.py` |
+| 3 | **Live dashboard** — browser analytics view (requires the inference engine running) | `python -m http.server 8080` → open `http://localhost:8080/dashboard.html` |
+
+All three work after the Quick Start setup below (install once, then run any component).
+
+---
+
 ## Prerequisites
 
 - **Python 3.10+**
@@ -134,9 +146,9 @@ python src/training/train.py
 ```bash
 python src/training/train_report.py
 ```
-Generates under `figures/`: training curves, confusion matrix, ROC curve, per-distance accuracy, `metrics.json`, and `classification_report.txt`.
+Generates under `figures/` (created automatically): training/validation loss curves, confusion matrix, ROC curve, per-distance accuracy bar chart, `metrics.json`, and `classification_report.txt`.
 
-The test set is held out from **real rows only** before any augmentation, preventing leakage. Expected results on the 226-row test set: accuracy ~99.6%, F1 ~0.996, ROC-AUC ~0.999.
+The test set (226 rows) is held out from **real rows only** before any augmentation, preventing data leakage. Expected results: accuracy ~99.6%, F1 ~0.996, ROC-AUC ~0.999.
 
 ### Live Dashboard
 ```bash

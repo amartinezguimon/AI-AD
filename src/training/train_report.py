@@ -6,7 +6,7 @@ ROC curve, per-distance-bucket accuracy, and a logistic-regression baseline.
 Run:
     python src/training/train_report.py
 
-Outputs (all under docs/figures/):
+Outputs (all under figures/):
     train_curves.png
     confusion_matrix.png
     roc_curve.png
@@ -34,7 +34,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-FIG_DIR = "docs/figures"
+FIG_DIR = "figures"
 CSV_PATH = "data/engagement_data.csv"
 MODEL_PATH = "models/engagement_model.pth"
 SEED = 42
