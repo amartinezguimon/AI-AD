@@ -1,0 +1,70 @@
+{
+  "dataset": {
+    "real_rows": 1127,
+    "augmented_train_rows": 3604,
+    "train_rows": 3063,
+    "val_rows": 541,
+    "test_rows": 226,
+    "label_counts": {
+      "1": 596,
+      "0": 531
+    }
+  },
+  "mlp": {
+    "accuracy": 0.995575221238938,
+    "precision": 0.9917355371900827,
+    "recall": 1.0,
+    "f1": 0.995850622406639,
+    "roc_auc": 0.9991352201257861,
+    "confusion_matrix": [
+      [
+        105,
+        1
+      ],
+      [
+        0,
+        120
+      ]
+    ]
+  },
+  "baselines": {
+    "yaw_threshold_rule": {
+      "accuracy": 0.915929203539823,
+      "f1": 0.9254901960784314,
+      "threshold": 0.1
+    },
+    "logistic_regression": {
+      "accuracy": 0.588495575221239,
+      "f1": 0.7207207207207207,
+      "roc_auc": 0.5264150943396226
+    }
+  },
+  "per_distance": [
+    {
+      "bucket": "near (dist>0.35)",
+      "n": 0,
+      "accuracy": 0.0
+    },
+    {
+      "bucket": "mid  (0.15<=d<=0.35)",
+      "n": 197,
+      "accuracy": 0.9949238578680203
+    },
+    {
+      "bucket": "far  (dist<0.15)",
+      "n": 29,
+      "accuracy": 1.0
+    }
+  ],
+  "hyperparameters": {
+    "epochs": 50,
+    "lr": 0.005,
+    "batch_size": 8,
+    "seed": 42,
+    "augmentation_scales": [
+      0.6,
+      0.35,
+      0.15
+    ]
+  }
+}
