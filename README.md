@@ -78,12 +78,7 @@ Run all three together for the full demo:
 ```bash
 python src/inference/main.py
 ```
-On startup, the engine checks for a saved calibration and prompts:
-- **`[1]` Use saved calibration** — recommended, uses the stored engagement zone
-- **`[2]` Skip calibration** — runs the PyTorch model only, no zone filter
-- **`[3]` Create new calibration** — quit and run `python src/utils/calibrate.py` first
-
-If no calibration file exists, it skips automatically and runs with the PyTorch model only.
+On startup, if no calibration file exists (fresh clone), it skips automatically and runs the PyTorch model only — no action needed.
 
 **Terminal 2 — Web server (required for dashboard and ad screen)**
 ```bash
