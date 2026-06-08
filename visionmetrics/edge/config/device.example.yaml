@@ -1,0 +1,58 @@
+# VisionMetrics edge device configuration.
+# Copy to device.yaml and edit per installation. Everything that used to be
+# hardcoded in main.py / calibrate.py lives here, so a new camera/store needs
+# zero code changes.
+
+device:
+  device_id: "dev-CHANGE-ME"        # unique per edge box (issued by the backend)
+  store_id: "store-CHANGE-ME"       # which store this box serves
+  store_name: "VisionMetrics AI"    # human-readable, shown on the HUD/dashboard
+
+camera:
+  # source accepts ANY of:
+  #   an integer index   -> 0, 1, 2        (USB / built-in webcam)
+  #   an RTSP url         -> "rtsp://user:pass@192.168.1.50:554/stream"  (IP camera)
+  #   a file path         -> "fixtures/clip.mp4"  (for offline testing)
+  source: 0
+  fov_h_deg: 70.0                   # horizontal field of view of THIS camera (critical for distance)
+  reconnect_delay_s: 2.0            # wait between reconnect attempts if the stream drops
+
+vision:
+  face_width_m: 0.16                # assumed real adult face width (pinhole model)
+  yolo_conf_min: 0.45               # reject weak person detections
+  aspect_ratio_min: 0.75            # height/width floor (people are taller than wide)
+  ghost_frame_trial: 20             # frames with no face found -> blacklist as non-human
+  head_crop_frac: 0.45              # top fraction of the person bbox treated as the head
+  head_upscale: 4                   # upscale factor on the head crop (enables 4 m+ detection)
+  face_skip_frames: 3               # run MediaPipe face every N frames per person
+  pose_enabled: true
+  pose_skip_frames: 8               # run MediaPipe pose every N frames per person
+  torso_neutral_span: 0.40          # shoulder span when squarely facing the camera
+  torso_min_visibility: 0.40        # min landmark visibility to trust the pose result
+
+engagement:
+  frame_buffer_size: 3
+  frame_engage_min: 1
+  count_threshold_s: 2.0            # attention before counting as "engaged"
+  reward_threshold_s: 5.0           # attention before the QR/reward screen fires
+  qr_duration_s: 10.0
+  zone_soft_margin: 0.30            # width of the soft engagement-zone edge
+
+models:
+  yolo: "yolov8n.pt"
+  face: "models/face_landmarker.task"
+  pose: "models/pose_landmarker_lite.task"
+  engagement: "models/engagement_model.pth"
+
+calibration:
+  # path to the per-store calibration produced by the calibration wizard;
+  # null => run the classifier with no zone filter.
+  config_path: "configs/store_config.json"
+
+uplink:
+  # where aggregate metrics are sent. enabled=false runs fully local (prototype mode).
+  enabled: false
+  base_url: "https://metrics.example.com"
+  api_key: "CHANGE-ME"
+  flush_interval_s: 60              # how often to POST a metric bucket
+  buffer_path: "data/uplink_buffer.sqlite"  # offline buffer if the network is down

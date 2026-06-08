@@ -6,6 +6,10 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+
+# ─── Edge device config (per-installation, secrets) ──────────
+visionmetrics/edge/config/device.yaml
 
 # ─── Model weights (auto-downloaded on first run) ────────────
 yolov8n.pt
