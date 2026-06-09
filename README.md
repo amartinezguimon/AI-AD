@@ -4,6 +4,13 @@
 
 VisionMetrics measures how people interact with physical advertisements (store windows, jewelry displays, product vitrinas) using a camera-based AI pipeline. It tracks foot traffic, attention time, gaze direction, and triggers live interactions — all without storing any images or identifying individuals.
 
+> **📦 Project status — productization in progress.**
+> The repository now has two codebases:
+> - **`src/`** — the original prototype (this README), **frozen** but still runnable.
+> - **`visionmetrics/`** — the productized monorepo (edge agent + cloud + dashboard) being built toward a SaaS pilot. See [`ROADMAP.md`](ROADMAP.md) and [`visionmetrics/README.md`](visionmetrics/README.md).
+>
+> Everything below describes the legacy prototype.
+
 ---
 
 ## Architecture — 7-Layer Pipeline
