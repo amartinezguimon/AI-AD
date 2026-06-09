@@ -11,6 +11,10 @@ build/
 # ─── Edge device config (per-installation, secrets) ──────────
 visionmetrics/edge/config/device.yaml
 
+# ─── Test footage (large, local-only; keep the folder README) ─
+fixtures/*
+!fixtures/README.md
+
 # ─── Model weights (auto-downloaded on first run) ────────────
 yolov8n.pt
 models/face_landmarker.task
