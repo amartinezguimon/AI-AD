@@ -30,14 +30,15 @@ client sees their stores. Pilot in real stores by August.
   - ☑ `engagement.py` — per-person state machine, windows, thresholds, QR trigger
   - ☑ `zone.py` — soft engagement-zone confidence
   - ☑ `classifier.py` — EngagementNet load + classify (verified vs real trained weights)
-- ☐ `vision/` glue: detector (YOLO), face (MediaPipe), pose (MediaPipe)
-- ☐ `capture.py` — video source (USB/RTSP/**file**) with auto-reconnect
-- ☐ `pipeline.py` — `EngagementPipeline` orchestrating the 7 layers, **returns data, draws nothing**
-- ☐ `viewer.py` — optional OpenCV debug window (`--debug`), separate from the service
-- ☐ `service.py` — main loop, runs headless, **no `input()`, no `imshow`**
+- ☑ `vision/` glue: detector (YOLO), face (MediaPipe), pose (MediaPipe)
+- ☑ `capture.py` — video source (USB/RTSP/**file**) with auto-reconnect
+- ☑ `pipeline.py` — `EngagementPipeline` orchestrating the 7 layers, **returns data, draws nothing**
+- ☑ `viewer.py` — optional OpenCV debug window (`--debug`), separate from the service
+- ☑ `service.py` — headless run loop, **no `input()`, no `imshow`** (CLI: `--config`, `--debug`)
+- ☑ `build.py` — wires DeviceConfig → ready EngagementPipeline
 - ☐ Run as OS service (systemd / Windows service) with auto-restart
-- ☐ Test fixture: short recorded clip → pipeline runs headless against it
-- ☑ Unit tests for all pure modules (30 tests, no camera needed)
+- ☐ Test fixture: short recorded clip → pipeline runs headless against it *(waiting on founder's clip)*
+- ☑ Unit tests (37 total: pure logic + capture via synthetic video + pipeline via fakes)
 
 ## Phase 2 — Data contract + uplink (Weeks 3–4)
 - ☑ `shared/schema.py` — the edge↔cloud contract (heartbeat + metric bucket) *(done early)*

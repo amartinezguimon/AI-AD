@@ -25,6 +25,7 @@ class EngagementParams:
     count_threshold_s: float = 2.0      # attention before a person counts as "engaged"
     reward_threshold_s: float = 5.0     # attention before the QR/reward screen fires
     qr_duration_s: float = 10.0         # how long the QR stays up once fired
+    zone_soft_margin: float = 0.30      # width of the soft engagement-zone edge (used by pipeline)
 
 
 @dataclass
