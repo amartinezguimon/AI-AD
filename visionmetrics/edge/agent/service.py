@@ -20,11 +20,16 @@ import argparse
 import signal
 import time
 
+from visionmetrics.shared.schema import SCHEMA_VERSION, Heartbeat
+
 from .build import build_pipeline
 from .capture import VideoSource
 from .config import DeviceConfig
+from .emitter import MetricEmitter, SessionCounters
+from .uplink import Uplink
 
 _PERF_INTERVAL_S = 5.0
+AGENT_VERSION = "0.2.0"
 
 
 def run(config_path: str, debug: bool = False) -> int:
@@ -40,6 +45,37 @@ def run(config_path: str, debug: bool = False) -> int:
         return 1
     print(f"[agent] camera open: {source.width}x{source.height} @ {source.fps:.0f}fps "
           f"(realtime={source.realtime})")
+
+    # Cloud uplink: emit per-window metric buckets, ship them on a background
+    # thread with an offline SQLite buffer. Disabled (None) for local tests.
+    emitter = MetricEmitter(config.device.device_id, config.device.store_id,
+                            window_s=config.uplink.window_s)
+    uplink = Uplink(config.uplink) if config.uplink.enabled else None
+    if uplink is not None:
+        uplink.start()
+        print(f"[agent] uplink -> {config.uplink.base_url} "
+              f"(buffer={config.uplink.buffer_path}, window={config.uplink.window_s:.0f}s)")
+
+    def _counters() -> SessionCounters:
+        t = pipeline.tracker
+        return SessionCounters(
+            passersby=t.total_passersby,
+            engaged=t.total_engaged,
+            total_attention_s=t.total_attention_s(),
+            qr_triggers=t.qr_trigger_count,
+        )
+
+    def _dispatch(bucket) -> None:
+        """Send a closed-window bucket to the cloud, or print it when uplink is off."""
+        if uplink is not None:
+            uplink.enqueue(bucket)
+        else:
+            print(f"[agent] bucket {bucket.window_start} pax={bucket.passersby} "
+                  f"engaged={bucket.engaged} rate={bucket.engagement_rate}% "
+                  f"attention={bucket.total_attention_s}s qr={bucket.qr_triggers}")
+
+    last_now = 0.0
+    last_heartbeat = 0.0
 
     stopping = {"flag": False}
 
@@ -70,9 +106,14 @@ def run(config_path: str, debug: bool = False) -> int:
                 continue
 
             now = time.time() if source.realtime else (frame_idx / file_fps)
+            last_now = now
             result = pipeline.process_frame(frame, frame_idx, now)
             frame_idx += 1
             frames_since += 1
+
+            # Close out any metric window that ended on this frame.
+            for bucket in emitter.sample(_counters(), now):
+                _dispatch(bucket)
 
             if debug:
                 annotated = viewer.draw(frame, result, store_name=config.device.store_name,
@@ -83,11 +124,34 @@ def run(config_path: str, debug: bool = False) -> int:
 
             elapsed = time.time() - t0           # wall-clock, for the processing-fps readout
             if elapsed >= _PERF_INTERVAL_S:
-                print(f"[agent] {frames_since / elapsed:.1f} fps | "
+                fps = frames_since / elapsed
+                print(f"[agent] {fps:.1f} fps | "
                       f"passersby={pipeline.tracker.total_passersby} "
                       f"engaged={pipeline.tracker.total_engaged}")
+                # Liveness ping (best-effort, not buffered).
+                if uplink is not None and (now - last_heartbeat) >= config.uplink.heartbeat_interval_s:
+                    uplink.send_heartbeat(Heartbeat(
+                        schema_version=SCHEMA_VERSION,
+                        device_id=config.device.device_id,
+                        store_id=config.device.store_id,
+                        sent_at=time.time(),
+                        agent_version=AGENT_VERSION,
+                        camera_ok=True,
+                        fps_display=round(fps, 1),
+                        fps_analysis=round(fps, 1),
+                        people_tracked=len(result.active_ids),
+                    ))
+                    last_heartbeat = now
                 t0, frames_since = time.time(), 0
     finally:
+        # Ship the final partial window, then stop the sender thread cleanly.
+        final = emitter.flush(_counters(), last_now)
+        if final is not None:
+            _dispatch(final)
+        if uplink is not None:
+            remaining = uplink.buffer.count()
+            uplink.stop()
+            print(f"[agent] uplink stopped. {remaining} buckets still buffered.")
         source.release()
         if debug:
             import cv2

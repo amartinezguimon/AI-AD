@@ -58,7 +58,9 @@ class UplinkConfig:
     enabled: bool = False
     base_url: str = ""
     api_key: str = ""
-    flush_interval_s: float = 60.0
+    flush_interval_s: float = 60.0          # how often the sender thread drains the buffer
+    window_s: float = 3600.0                # metric bucket length (hourly by default)
+    heartbeat_interval_s: float = 30.0      # liveness ping cadence
     buffer_path: str = "data/uplink_buffer.sqlite"
 
 

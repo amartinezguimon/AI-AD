@@ -49,15 +49,38 @@ client sees their stores. Pilot in real stores by August.
   once a face confirms it's a person, and unconfirmed tracks keep being checked
   forever. Chairs (never a face) still never count. Verified: engaged 0 → 1.
 - ☑ File playback now uses **video time** (frame/fps) for attention, not wall clock.
+- ☑ **Investigated the "attention 21s" item against the user's ACCURATE ground
+  truth — the detector is correct; there is nothing to tune.** The earlier
+  "~10s looked" figure was a bad memory; the real timeline is: 1-15s not looking,
+  16-24s looking (moving then still), 27-28s looking (torso turned), 29-35s not
+  looking, 35-42s looking while moving ≈ **~17s genuinely looking**. The pipeline
+  detected three engaged windows — 15.8-25.4s, 27.3-29.7s, 35.5-44.0s — which map
+  one-to-one onto the looking segments, and stayed silent on both not-looking
+  segments (the 29.7→35.5s gap matches "29-35 not looking" to the second).
+  Measured attention 20.6s vs ~17s true = **~3s of over-count, ~1s per window
+  end**, from the head reading frontal for ~1s while turning away. That is natural
+  and acceptable, not a defect. NOTE: my prior "walking-toward-webcam false
+  positives / fix via geometry+zone" conclusion was WRONG — it was built on the
+  bad ~10s figure; the user was in fact looking during those windows.
 - ☐ Known, deferred: YOLO track-id instability counts one person as ~2 passersby
   (re-identification). Note for Phase 5 hardening.
 - ☐ Known, deferred: MediaPipe finds a face ~54% of frames when subject is very
   close / filling the frame — revisit head-crop logic for close range.
 
-## Phase 2 — Data contract + uplink (Weeks 3–4)
+## Phase 2 — Data contract + uplink (Weeks 3–4) — *done*
 - ☑ `shared/schema.py` — the edge↔cloud contract (heartbeat + metric bucket) *(done early)*
-- ☐ `emitter.py` — builds buckets (evolves current write_*_json)
-- ☐ `uplink.py` — HTTPS POST + **offline buffer (SQLite) with retry + idempotency**
+- ☑ `emitter.py` — `MetricEmitter`: watches the tracker's cumulative counters and
+  emits one `MetricBucket` per closed time window (delta-based, like the old
+  `write_hourly_snapshot`). Pure + tested; window length from `device.yaml`.
+- ☑ `uplink.py` — `UplinkBuffer` (SQLite, deduped on `idempotency_key`, survives
+  reboots) + `Uplink` (background sender thread, **never blocks the CV loop**,
+  short-timeout `urllib` POST, retry-on-next-cycle, injectable transport for tests).
+- ☑ Wired into `service.py`: per-frame `emitter.sample`, periodic heartbeat,
+  final-window flush + clean thread shutdown. Disabled path prints buckets locally.
+- ☑ 17 new unit tests (windowing/deltas + buffer durability/retry). Suite: 55 total.
+- ☐ Known, deferred: attention delta clamps to >= 0 (tracker's attention sum isn't
+  strictly monotonic when a track is forgotten) — a monotonic lifetime counter is
+  a later hardening item. Noted in `emitter.py`.
 
 ## Phase 3 — Minimal backend on the VM (Weeks 4–6)
 - ☐ `cloud/` docker-compose: ingest API + worker + Postgres + Caddy (HTTPS)
