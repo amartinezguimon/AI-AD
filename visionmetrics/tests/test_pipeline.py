@@ -34,6 +34,25 @@ class FakeHeadPose:
         self.forgotten.append(tid)
 
 
+class FakeHeadPoseSequence:
+    """Returns None for the first `none_for` analyze calls, then a fixed pose.
+
+    Simulates a person who approaches with their back turned (no face) and only
+    later turns to look at the display.
+    """
+    def __init__(self, pose, none_for):
+        self._pose = pose
+        self._none_for = none_for
+        self._calls = 0
+
+    def analyze(self, frame, bbox, tid, frame_idx, focal_px):
+        self._calls += 1
+        return None if self._calls <= self._none_for else self._pose
+
+    def forget(self, tid):
+        pass
+
+
 class FakeTorso:
     def __init__(self, result=NEUTRAL):
         self._result = result
@@ -66,7 +85,7 @@ def make_pipeline(detector, head_pose, classifier_prob, **params):
         zone=None,
         engagement_params=EngagementParams(frame_buffer_size=1, frame_engage_min=1, **params),
         fov_h_deg=70.0,
-        ghost_frame_trial=3,
+        ghost_recheck_every=1,
     )
 
 
@@ -97,19 +116,28 @@ def test_away_person_not_counted():
     assert pipe.tracker.total_engaged == 0
 
 
-def test_ghost_track_blacklisted_after_trial():
+def test_unconfirmed_track_never_counted():
+    # A detection that never yields a face (e.g. a chair) is never counted.
     det = Detection(track_id=9, bbox=(0, 0, 50, 200), confidence=0.9)
-    # head pose never found -> after ghost_frame_trial (3) frames it's blacklisted
     pipe = make_pipeline(FakeDetector([det]), FakeHeadPose(None), 1.0)
+    for i in range(30):
+        r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 0
+    assert r.persons == []
 
-    pipe.process_frame(FRAME, 0, 0.0)
-    assert pipe.tracker.total_passersby == 1
-    pipe.process_frame(FRAME, 1, 1.0)
-    pipe.process_frame(FRAME, 2, 2.0)   # 3rd frame: seen==3 == trial, no face -> ghost
 
-    assert 9 in pipe._ghost_ids
-    assert pipe.tracker.total_passersby == 0       # passerby increment reversed
-    assert 9 in pipe.head_pose.forgotten
+def test_track_confirmed_when_face_appears_later():
+    # The real-store scenario: person approaches with back turned (no face) for a
+    # while, THEN looks at the display. Must still be detected, counted, scored.
+    det = Detection(track_id=4, bbox=(100, 50, 200, 400), confidence=0.9)
+    pipe = make_pipeline(FakeDetector([det]),
+                         FakeHeadPoseSequence(STRAIGHT, none_for=15), 1.0,
+                         count_threshold_s=2.0)
+    for i in range(40):
+        r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 1   # confirmed once the face appeared
+    assert pipe.tracker.total_engaged == 1     # engagement scored after confirmation
+    assert r.persons and r.persons[0].is_engaged
 
 
 def test_qr_fires_once_after_reward_threshold():

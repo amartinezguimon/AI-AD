@@ -37,8 +37,22 @@ client sees their stores. Pilot in real stores by August.
 - ☑ `service.py` — headless run loop, **no `input()`, no `imshow`** (CLI: `--config`, `--debug`)
 - ☑ `build.py` — wires DeviceConfig → ready EngagementPipeline
 - ☑ Run as OS service: systemd unit + install script (Linux) + NSSM guide (Windows), auto-restart — see `edge/deploy/` *(install on real box pending)*
-- ☐ Test fixture: short recorded clip → pipeline runs headless against it *(waiting on founder's clip)*
-- ☑ Unit tests (37 total: pure logic + capture via synthetic video + pipeline via fakes)
+- ☑ Test fixture: recorded clip (45s, 1280x720) → pipeline runs headless against it
+- ☑ Unit tests (38 total: pure logic + capture via synthetic video + pipeline via fakes)
+
+### Clip verification findings (real footage)
+- ☑ **Fixed a real product bug**: the ghost filter permanently blacklisted any
+  track that showed no face in its first ~20 frames. A customer who approaches
+  with their back turned and only later looks at the display was killed early
+  and never recovered (engaged=0). Replaced the permanent veto with a
+  *confirm-on-first-face* model (`ghost_recheck_every`): a track is counted only
+  once a face confirms it's a person, and unconfirmed tracks keep being checked
+  forever. Chairs (never a face) still never count. Verified: engaged 0 → 1.
+- ☑ File playback now uses **video time** (frame/fps) for attention, not wall clock.
+- ☐ Known, deferred: YOLO track-id instability counts one person as ~2 passersby
+  (re-identification). Note for Phase 5 hardening.
+- ☐ Known, deferred: MediaPipe finds a face ~54% of frames when subject is very
+  close / filling the frame — revisit head-crop logic for close range.
 
 ## Phase 2 — Data contract + uplink (Weeks 3–4)
 - ☑ `shared/schema.py` — the edge↔cloud contract (heartbeat + metric bucket) *(done early)*

@@ -59,7 +59,7 @@ class EngagementPipeline:
         zone: EngagementZone | None,
         engagement_params: EngagementParams,
         fov_h_deg: float,
-        ghost_frame_trial: int,
+        ghost_recheck_every: int = 1,
         zone_soft_margin: float = 0.30,
     ):
         self.detector = detector
@@ -68,13 +68,15 @@ class EngagementPipeline:
         self.classifier = classifier
         self.zone = zone
         self.fov_h_deg = fov_h_deg
-        self.ghost_frame_trial = ghost_frame_trial
+        # Unconfirmed tracks are re-checked for a face every Nth frame they appear.
+        # 1 = check every frame (most accurate). Higher saves CPU on persistent
+        # non-human detections at the cost of slower confirmation.
+        self.ghost_recheck_every = max(1, ghost_recheck_every)
         self.zone_soft_margin = zone_soft_margin
         self.tracker = EngagementTracker(engagement_params)
         self._focal_px: float | None = None
-        self._ghost_ids: set[int] = set()
-        self._seen: dict[int, int] = {}          # track_id -> frames processed
-        self._faces: dict[int, int] = {}          # track_id -> frames a face was found
+        self._seen: dict[int, int] = {}          # track_id -> frames seen
+        self._confirmed: set[int] = set()         # tracks that have shown a face once
         self._qr_fired_this_frame = False
 
     def process_frame(self, frame, frame_idx: int, now: float) -> FrameResult:
@@ -85,22 +87,27 @@ class EngagementPipeline:
         result = FrameResult()
         for det in self.detector.detect(frame):
             tid = det.track_id
-            if tid in self._ghost_ids:
-                continue
-
             self._seen[tid] = self._seen.get(tid, 0) + 1
-            pose = self.head_pose.analyze(frame, det.bbox, tid, frame_idx, self._focal_px)
+            confirmed = tid in self._confirmed
 
-            if pose is not None:
-                self._faces[tid] = self._faces.get(tid, 0) + 1
-            elif self._is_ghost(tid):
-                self._blacklist(tid)
+            # A track is only counted/scored once a face has confirmed it's a real
+            # person — this is the false-positive gate (a chair never yields a
+            # face). Crucially it is NOT permanent: an unconfirmed track keeps
+            # being checked, so someone who approaches with their back turned and
+            # only later looks at the display is still picked up.
+            if not confirmed and self._seen[tid] % self.ghost_recheck_every != 0:
                 continue
+
+            pose = self.head_pose.analyze(frame, det.bbox, tid, frame_idx, self._focal_px)
+            if pose is not None and not confirmed:
+                self._confirmed.add(tid)
+                confirmed = True
+            if not confirmed:
+                continue   # no confirmed face yet -> not (yet) a counted person
 
             result.active_ids.add(tid)
             torso = self.torso.analyze(frame, det.bbox, tid, frame_idx)
-            person = self._score(tid, det.bbox, pose, torso, now)
-            result.persons.append(person)
+            result.persons.append(self._score(tid, det.bbox, pose, torso, now))
 
         # QR fires when any tracked person crosses the reward threshold this frame.
         result.qr_triggered = self._qr_fired_this_frame
@@ -139,13 +146,3 @@ class EngagementPipeline:
         person.newly_counted = update.newly_counted
         person.tier = _tier(engage_prob)
         return person
-
-    # ── ghost handling ───────────────────────────────────────────
-    def _is_ghost(self, tid: int) -> bool:
-        return self._seen.get(tid, 0) >= self.ghost_frame_trial and self._faces.get(tid, 0) == 0
-
-    def _blacklist(self, tid: int) -> None:
-        self._ghost_ids.add(tid)
-        self.tracker.forget(tid)
-        self.head_pose.forget(tid)
-        self.torso.forget(tid)

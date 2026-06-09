@@ -49,6 +49,6 @@ def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
         zone=load_zone(config),
         engagement_params=config.engagement,
         fov_h_deg=config.camera.fov_h_deg,
-        ghost_frame_trial=v.ghost_frame_trial,
+        ghost_recheck_every=v.ghost_recheck_every,
         zone_soft_margin=config.engagement.zone_soft_margin,
     )

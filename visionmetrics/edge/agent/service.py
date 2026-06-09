@@ -55,6 +55,10 @@ def run(config_path: str, debug: bool = False) -> int:
     frame_idx = 0
     t0 = time.time()
     frames_since = 0
+    # For a recorded file we measure engagement in VIDEO time (frame / fps), not
+    # wall-clock, so attention seconds are accurate regardless of processing speed.
+    # A live camera uses the real clock.
+    file_fps = source.fps or 30.0
     print("[agent] running. Ctrl-C / SIGTERM to stop.")
     try:
         while not stopping["flag"]:
@@ -65,7 +69,7 @@ def run(config_path: str, debug: bool = False) -> int:
                 time.sleep(0.01)
                 continue
 
-            now = time.time()
+            now = time.time() if source.realtime else (frame_idx / file_fps)
             result = pipeline.process_frame(frame, frame_idx, now)
             frame_idx += 1
             frames_since += 1
@@ -77,12 +81,12 @@ def run(config_path: str, debug: bool = False) -> int:
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
-            elapsed = now - t0
+            elapsed = time.time() - t0           # wall-clock, for the processing-fps readout
             if elapsed >= _PERF_INTERVAL_S:
                 print(f"[agent] {frames_since / elapsed:.1f} fps | "
                       f"passersby={pipeline.tracker.total_passersby} "
                       f"engaged={pipeline.tracker.total_engaged}")
-                t0, frames_since = now, 0
+                t0, frames_since = time.time(), 0
     finally:
         source.release()
         if debug:

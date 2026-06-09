@@ -21,7 +21,9 @@ vision:
   face_width_m: 0.16                # assumed real adult face width (pinhole model)
   yolo_conf_min: 0.45               # reject weak person detections
   aspect_ratio_min: 0.75            # height/width floor (people are taller than wide)
-  ghost_frame_trial: 20             # frames with no face found -> blacklist as non-human
+  ghost_recheck_every: 1            # recheck unconfirmed tracks for a face every Nth frame
+                                    # (1 = every frame, most accurate; raise to save CPU on
+                                    #  persistent non-human detections like a chair)
   head_crop_frac: 0.45              # top fraction of the person bbox treated as the head
   head_upscale: 4                   # upscale factor on the head crop (enables 4 m+ detection)
   face_skip_frames: 3               # run MediaPipe face every N frames per person

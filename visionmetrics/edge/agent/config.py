@@ -35,7 +35,7 @@ class VisionConfig:
     face_width_m: float = 0.16
     yolo_conf_min: float = 0.45
     aspect_ratio_min: float = 0.75
-    ghost_frame_trial: int = 20
+    ghost_recheck_every: int = 1     # recheck unconfirmed tracks every Nth frame (1 = every frame)
     head_crop_frac: float = 0.45
     head_upscale: int = 4
     face_skip_frames: int = 3
