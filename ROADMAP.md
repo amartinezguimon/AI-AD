@@ -36,7 +36,7 @@ client sees their stores. Pilot in real stores by August.
 - ☑ `viewer.py` — optional OpenCV debug window (`--debug`), separate from the service
 - ☑ `service.py` — headless run loop, **no `input()`, no `imshow`** (CLI: `--config`, `--debug`)
 - ☑ `build.py` — wires DeviceConfig → ready EngagementPipeline
-- ☐ Run as OS service (systemd / Windows service) with auto-restart
+- ☑ Run as OS service: systemd unit + install script (Linux) + NSSM guide (Windows), auto-restart — see `edge/deploy/` *(install on real box pending)*
 - ☐ Test fixture: short recorded clip → pipeline runs headless against it *(waiting on founder's clip)*
 - ☑ Unit tests (37 total: pure logic + capture via synthetic video + pipeline via fakes)
 

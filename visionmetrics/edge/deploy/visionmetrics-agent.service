@@ -1,0 +1,30 @@
+# systemd unit for the VisionMetrics edge agent (Linux edge box / mini-PC).
+# Install with deploy/install_linux.sh, or copy manually to
+# /etc/systemd/system/ and edit the paths below.
+#
+# Behavior: starts after the network is up, runs the agent headless, and
+# restarts automatically on crash. The restart limiter prevents a tight
+# crash-loop if the failure is permanent (e.g. a missing model file).
+
+[Unit]
+Description=VisionMetrics edge agent
+After=network-online.target
+Wants=network-online.target
+# If it fails 5 times within 60s, stop trying until manually restarted.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# --- EDIT THESE for your install ---
+User=visionmetrics
+WorkingDirectory=/opt/visionmetrics
+ExecStart=/opt/visionmetrics/venv/bin/python -m visionmetrics.edge.agent.service --config /opt/visionmetrics/visionmetrics/edge/config/device.yaml
+# -----------------------------------
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+# Logs go to journald: view with `journalctl -u visionmetrics-agent -f`
+
+[Install]
+WantedBy=multi-user.target
