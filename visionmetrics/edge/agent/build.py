@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .classifier import EngagementClassifier
 from .config import DeviceConfig
+from .models_bootstrap import ensure_models
 from .pipeline import EngagementPipeline
 from .vision.detector import PersonDetector
 from .vision.face import HeadPoseAnalyzer
@@ -29,6 +30,7 @@ def load_zone(config: DeviceConfig) -> EngagementZone | None:
 
 
 def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
+    ensure_models(config)   # self-bootstrap: fetch missing MediaPipe task files
     v = config.vision
     detector = PersonDetector(
         config.models.yolo, conf_min=v.yolo_conf_min, aspect_ratio_min=v.aspect_ratio_min,
