@@ -22,7 +22,12 @@ the dashboards. FastAPI + SQLAlchemy + PostgreSQL.
   schema, local and prod. `alembic -c cloud/alembic.ini upgrade head`.
 - ☑ `docker-compose.yml` — API + PostgreSQL + Caddy (auto-HTTPS). One command,
   same file on a laptop and on the VM; only `.env` differs.
-- ☐ Next: platform back-office (cross-tenant ops view).
+- ☑ Platform back-office (staff, cross-tenant): `POST /v1/auth/staff/login`,
+  `GET /v1/admin/orgs` (with counts), `POST /v1/admin/orgs|stores|devices`
+  (onboard a client via API; device key returned once), `GET /v1/admin/fleet`
+  (every device across all clients with live status). Bootstrap a staff login
+  with `python -m cloud.scripts.provision staff --email ... --password ...`.
+- ☐ Next: Phase 4 — the frontend (client dashboard + staff back-office UI).
 
 ## Run locally (SQLite, no Docker)
 From the repo root:

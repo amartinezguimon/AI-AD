@@ -51,6 +51,9 @@ def main() -> int:
     u.add_argument("--password", required=True)
     u.add_argument("--role", default="admin"); u.add_argument("--store-id", default=None)
 
+    stf = sub.add_parser("staff", help="create a platform-staff (us) login")
+    stf.add_argument("--email", required=True); stf.add_argument("--password", required=True)
+
     args = ap.parse_args()
     db = SessionLocal()
     try:
@@ -70,6 +73,9 @@ def main() -> int:
             uid = prov.create_user(db, args.org_id, args.email, args.password,
                                    role=args.role, store_id=args.store_id).id
             print("user_id=" + uid)
+        elif args.cmd == "staff":
+            sid = prov.create_platform_staff(db, args.email, args.password).id
+            print("staff_id=" + sid)
     finally:
         db.close()
     return 0

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from jose import JWTError
 
 from .db import get_session
-from .models import Device, Store, User
+from .models import Device, PlatformStaff, Store, User
 from .security import decode_access_token, hash_api_key
 
 _bearer = HTTPBearer(auto_error=True)
@@ -66,6 +66,28 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Admin role required")
     return user
+
+
+def get_current_staff(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+    db: Session = Depends(get_session),
+) -> PlatformStaff:
+    """Cross-tenant platform operator (us). Distinct token type from client users."""
+    cred_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired staff session",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = decode_access_token(creds.credentials)
+    except JWTError:
+        raise cred_exc
+    if payload.get("typ") != "staff" or not payload.get("sub"):
+        raise cred_exc
+    staff = db.get(PlatformStaff, payload["sub"])
+    if staff is None:
+        raise cred_exc
+    return staff
 
 
 def resolve_store_scope(user: User, requested_store_id: str | None,

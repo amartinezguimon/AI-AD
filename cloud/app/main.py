@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from .routers import auth, dashboard, health, ingest, users
+from .routers import admin, auth, dashboard, health, ingest, users
 
 app = FastAPI(title="VisionMetrics Cloud", version="0.1.0")
 
@@ -24,3 +24,4 @@ app.include_router(ingest.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(users.router)
+app.include_router(admin.router)

@@ -145,9 +145,16 @@ client sees their stores. Pilot in real stores by August.
 - ☑ Runs locally on SQLite (zero setup) + 19 tests (device auth, tenant
   isolation across orgs, bucket idempotency, heartbeat-online, login, role
   guards, store-scope enforcement, summary aggregation). FastAPI (`/docs` auto).
-- ☐ Alembic migrations (replace dev-time create_all before deploy).
-- ☐ `docker-compose`: API + Postgres + Caddy (HTTPS) — one-command local + VM.
-- ☐ One real test store sending live data to the VM.
+- ☑ Alembic migrations (`cloud/migrations/`) — single source of truth for the
+  schema (local SQLite + prod Postgres); stable naming convention; app no longer
+  auto-creates tables. Verified: upgrade builds all tables from scratch.
+- ☑ `docker-compose.yml`: API (auto-migrates on start) + Postgres + Caddy
+  (auto-HTTPS) + Dockerfile + Caddyfile + .dockerignore. Same file local + VM.
+- ☑ Platform back-office API (staff, cross-tenant): staff login + `/v1/admin/orgs`
+  (list w/ counts + create), `/v1/admin/stores|devices` (onboard a client via API,
+  device key once), `/v1/admin/fleet` (all devices, all clients). Client-user
+  tokens are rejected from `/v1/admin`. 24 cloud tests. UI is Phase 4.
+- ☐ One real test store sending live data to the VM (needs Docker on the VM).
 
 ## Phase 4 — Minimal SaaS dashboard (Weeks 6–8)
 - ☐ Web app: login, store selector, date range

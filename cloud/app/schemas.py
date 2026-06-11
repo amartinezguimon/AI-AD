@@ -104,3 +104,46 @@ class UserOut(BaseModel):
     email: str
     role: str
     store_id: str | None = None
+
+
+# ── platform back-office (staff, cross-tenant) ────────────────────
+class OrgOut(BaseModel):
+    id: str
+    name: str
+    created_at: str
+    store_count: int
+    device_count: int
+
+
+class OrgCreateIn(BaseModel):
+    name: str
+
+
+class StoreCreateIn(BaseModel):
+    org_id: str
+    name: str
+    address: str | None = None
+    timezone: str = "Europe/Madrid"
+
+
+class DeviceCreateIn(BaseModel):
+    org_id: str
+    store_id: str
+    device_id: str
+
+
+class DeviceKeyOut(BaseModel):
+    """Returned ONCE when a device is provisioned — the key is never stored raw."""
+    device_id: str
+    api_key: str
+
+
+class AdminDeviceOut(BaseModel):
+    id: str
+    org_id: str
+    org_name: str
+    store_id: str
+    store_name: str
+    status: str
+    agent_version: str | None = None
+    last_seen_at: str | None = None
