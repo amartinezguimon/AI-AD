@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from .db import Base, engine
-from .routers import health, ingest
+from .routers import auth, dashboard, health, ingest, users
 
 
 @asynccontextmanager
@@ -31,3 +31,6 @@ app = FastAPI(title="VisionMetrics Cloud", version="0.1.0", lifespan=lifespan)
 
 app.include_router(health.router)
 app.include_router(ingest.router)
+app.include_router(auth.router)
+app.include_router(dashboard.router)
+app.include_router(users.router)

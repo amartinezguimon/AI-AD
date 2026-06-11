@@ -127,11 +127,27 @@ client sees their stores. Pilot in real stores by August.
   strictly monotonic when a track is forgotten) — a monotonic lifetime counter is
   a later hardening item. Noted in `emitter.py`.
 
-## Phase 3 — Minimal backend on the VM (Weeks 4–6)
-- ☐ `cloud/` docker-compose: ingest API + worker + Postgres + Caddy (HTTPS)
-- ☐ Multi-tenant schema day 1: `org → store → device → camera`, users/roles, `org_id` on every query
-- ☐ One real test store sending live data to the VM
-- ☐ Device provisioning: generate `device_id` + `api_key`
+## Phase 3 — Minimal backend on the VM (Weeks 4–6) — *in progress*
+- ☑ Multi-tenant schema day 1 (`cloud/app/models.py`): `org → store → device →
+  camera`, users/roles, metric_buckets, heartbeats, platform_staff; `org_id` on
+  every data row; `reseller_id` nullable for the future.
+- ☑ Ingest API (`cloud/app/routers/ingest.py`): `POST /v1/metrics` (device-auth,
+  idempotent on (device, window_start)) + `POST /v1/heartbeat` (fleet health).
+  Tenant-safe: org/store taken from the device row, not the body. Wire format
+  matches `shared/schema.py`.
+- ☑ Device provisioning (`cloud/app/provisioning.py` + `scripts/provision.py`):
+  generate `device_id` + `api_key` (key shown once, only hash stored) + create
+  org/store/user. CLI ready.
+- ☑ Dashboard auth + read API: `POST /v1/auth/login` (JWT) + `/v1/me`,
+  `/v1/stores`, `/v1/devices` (fleet health), `/v1/metrics/summary` &
+  `/timeseries` (store + date-range filters), `/v1/users` (owner manages users).
+  Every query scoped to the user's org / store. Business-language numbers.
+- ☑ Runs locally on SQLite (zero setup) + 19 tests (device auth, tenant
+  isolation across orgs, bucket idempotency, heartbeat-online, login, role
+  guards, store-scope enforcement, summary aggregation). FastAPI (`/docs` auto).
+- ☐ Alembic migrations (replace dev-time create_all before deploy).
+- ☐ `docker-compose`: API + Postgres + Caddy (HTTPS) — one-command local + VM.
+- ☐ One real test store sending live data to the VM.
 
 ## Phase 4 — Minimal SaaS dashboard (Weeks 6–8)
 - ☐ Web app: login, store selector, date range
