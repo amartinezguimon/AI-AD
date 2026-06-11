@@ -11,6 +11,12 @@ build/
 # ─── Edge device config (per-installation, secrets) ──────────
 visionmetrics/edge/config/device.yaml
 
+# ─── Cloud backend (local DB + secrets) ──────────────────────
+cloud/.env
+*.db
+*.sqlite
+*.sqlite3
+
 # ─── Test footage (large, local-only; keep the folder README) ─
 fixtures/*
 !fixtures/README.md

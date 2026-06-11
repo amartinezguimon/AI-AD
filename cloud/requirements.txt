@@ -1,0 +1,14 @@
+# Cloud backend (separate from the edge agent's requirements).
+fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+pydantic>=2
+pydantic-settings
+bcrypt                 # password hashing (dashboard users)
+python-jose[cryptography]  # JWT for dashboard sessions
+psycopg2-binary        # PostgreSQL driver (production); tests use sqlite
+alembic                # database migrations
+
+# Dev / test
+pytest>=8
+httpx                  # FastAPI TestClient
