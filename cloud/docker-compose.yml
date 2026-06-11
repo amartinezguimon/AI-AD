@@ -1,0 +1,59 @@
+# The whole cloud stack in one command:  docker compose up -d  (run from cloud/)
+# Reads variables from cloud/.env (copy from .env.example first).
+#
+#   db   — PostgreSQL (data persisted in a named volume)
+#   api  — FastAPI (runs Alembic migrations on start, then uvicorn)
+#   caddy— reverse proxy with automatic HTTPS (Let's Encrypt) for VM_DOMAIN
+#
+# Same file works on your laptop and on Txema's VM — only .env differs.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: ..
+      dockerfile: cloud/Dockerfile
+    restart: unless-stopped
+    environment:
+      VM_DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      VM_JWT_SECRET: ${VM_JWT_SECRET}
+      VM_ENVIRONMENT: production
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      VM_DOMAIN: ${VM_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

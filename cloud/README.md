@@ -18,16 +18,30 @@ the dashboards. FastAPI + SQLAlchemy + PostgreSQL.
   - `POST /v1/users` / `GET /v1/users` — owner-admin manages users.
   - Every query scoped to the user's org (and pinned to their store if limited).
 - ☑ Tests on SQLite (no Docker needed): `19 passed` (incl. cross-org isolation).
-- ☐ Next: Alembic migrations, docker-compose (Postgres + Caddy/HTTPS) for the VM
-  deploy, platform back-office (cross-tenant).
+- ☑ Alembic migrations (`migrations/`) — the single source of truth for the
+  schema, local and prod. `alembic -c cloud/alembic.ini upgrade head`.
+- ☑ `docker-compose.yml` — API + PostgreSQL + Caddy (auto-HTTPS). One command,
+  same file on a laptop and on the VM; only `.env` differs.
+- ☐ Next: platform back-office (cross-tenant ops view).
 
-## Run locally (zero setup — SQLite)
+## Run locally (SQLite, no Docker)
 From the repo root:
 ```bash
 venv/Scripts/python -m pip install -r cloud/requirements.txt   # first time
+venv/Scripts/alembic -c cloud/alembic.ini upgrade head         # create/upgrade schema
 venv/Scripts/python -m uvicorn cloud.app.main:app --reload
 ```
 Interactive API docs at http://127.0.0.1:8000/docs
+
+## Run the full stack (Docker — what the VM runs)
+```bash
+cd cloud
+cp .env.example .env      # then edit secrets (POSTGRES_PASSWORD, VM_JWT_SECRET, VM_DOMAIN)
+docker compose up -d      # Postgres + API (auto-migrates) + Caddy (HTTPS)
+```
+On the VM, point `VM_DOMAIN` at the real hostname and Caddy fetches a Let's
+Encrypt certificate automatically. The edge agents then post to
+`https://<VM_DOMAIN>/v1/metrics`.
 
 ### Provision a test store + device
 ```bash

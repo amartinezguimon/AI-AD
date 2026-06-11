@@ -1,0 +1,8 @@
+# Reverse proxy in front of the API. With a real domain in VM_DOMAIN, Caddy gets
+# and renews a Let's Encrypt certificate automatically (HTTPS, no extra config).
+# For local use, VM_DOMAIN defaults to localhost (Caddy serves an internal cert).
+
+{$VM_DOMAIN:localhost} {
+	encode gzip
+	reverse_proxy api:8000
+}

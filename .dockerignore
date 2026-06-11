@@ -1,0 +1,19 @@
+# The cloud image only needs the `cloud/` package; keep the build context small.
+venv/
+.git/
+.claude/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+*.sqlite
+*.sqlite3
+fixtures/
+models/
+docs/
+remotion-demo/
+src/
+visionmetrics/
+*.pt
+*.task
+node_modules/

@@ -1,33 +1,23 @@
 """FastAPI application entry point.
 
-Wires the routers and (in development) creates tables on startup so the app runs
-with zero setup. In production, schema changes go through Alembic migrations
-(added before deploy) rather than create_all — but create_all is a safe no-op
-when the tables already exist.
+Wires the routers. The database schema is managed by Alembic migrations
+(`alembic -c cloud/alembic.ini upgrade head`) — both locally and in production —
+so the app itself never creates tables. The Docker image runs the migration on
+start before launching uvicorn.
 
 Run locally:
+    alembic -c cloud/alembic.ini upgrade head     # once / after schema changes
     uvicorn cloud.app.main:app --reload
 Interactive docs at /docs.
 """
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 
-from .db import Base, engine
 from .routers import auth, dashboard, health, ingest, users
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Dev convenience: ensure tables exist. Harmless if they already do.
-    Base.metadata.create_all(bind=engine)
-    yield
-
-
-app = FastAPI(title="VisionMetrics Cloud", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="VisionMetrics Cloud", version="0.1.0")
 
 app.include_router(health.router)
 app.include_router(ingest.router)
