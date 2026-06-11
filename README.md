@@ -70,16 +70,15 @@ VisionMetrics measures how people interact with physical advertisements (store w
 │   └── engagement_data.csv      # 1,127 labelled rows (real, no augmentation)
 │
 ├── dashboard.html               # Chart.js live analytics dashboard
-├── ad_screen.html               # Customer-facing ad/QR screen
 ├── requirements.txt             # Python dependencies
 └── .gitignore
 ```
 
 ---
 
-## Three Runnable Components
+## Runnable Components
 
-Run all three together for the full demo:
+Run both together for the full demo:
 
 **Terminal 1 — AI engine (required for everything below)**
 ```bash
@@ -87,21 +86,20 @@ python src/inference/main.py
 ```
 On startup, if no calibration file exists (fresh clone), it skips automatically and runs the PyTorch model only — no action needed.
 
-**Terminal 2 — Web server (required for dashboard and ad screen)**
+**Terminal 2 — Web server (required for the dashboard)**
 ```bash
 python -m http.server 8080
 ```
 
-Then open two browser tabs:
+Then open the dashboard:
 
 | # | What it does | URL |
 |---|---|---|
 | 1 | **Live Dashboard** — real-time analytics, charts, foot traffic | `http://localhost:8080/dashboard.html` |
-| 2 | **Ad Screen** — customer-facing display, QR overlay triggers after 5s engagement | `http://localhost:8080/ad_screen.html` |
 
-> Do NOT open the HTML files directly from your file system (`file://`) — use the URLs above or `fetch()` will be blocked by the browser.
+> Do NOT open the HTML file directly from your file system (`file://`) — use the URL above or `fetch()` will be blocked by the browser.
 
-All three work after the Quick Start setup below (install once, then run).
+All of it works after the Quick Start setup below (install once, then run).
 
 ---
 
@@ -184,12 +182,6 @@ python src/inference/main.py
 Then open **http://localhost:8080/dashboard.html** in your browser.
 
 > Do NOT open `dashboard.html` as a `file://` URL — `fetch()` will be blocked by browser CORS policy.
-
-### Customer Ad Screen
-```bash
-python -m http.server 8080
-```
-Open **http://localhost:8080/ad_screen.html** on a second screen facing the customer. When a person stays engaged for 5 seconds, `main.py` triggers the QR discount overlay automatically on this screen.
 
 ---
 
