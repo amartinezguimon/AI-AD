@@ -8,6 +8,8 @@ pipeline because it needs cross-frame face feedback.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass
 
 
@@ -19,15 +21,37 @@ class Detection:
 
 
 class PersonDetector:
-    def __init__(self, model_path: str, *, conf_min: float, aspect_ratio_min: float):
+    def __init__(self, model_path: str, *, conf_min: float, aspect_ratio_min: float,
+                 track_buffer: int = 30):
         from ultralytics import YOLO  # imported lazily so tests can mock the class
         self._model = YOLO(model_path)
         self.conf_min = conf_min
         self.aspect_ratio_min = aspect_ratio_min
+        # Custom ByteTrack config: a larger track_buffer keeps a momentarily-lost
+        # track alive (same id) for longer, which is the first defence against
+        # re-counting a person after a brief detection gap.
+        self._tracker_cfg = self._write_tracker_cfg(track_buffer)
+
+    @staticmethod
+    def _write_tracker_cfg(track_buffer: int) -> str:
+        cfg = (
+            "tracker_type: bytetrack\n"
+            "track_high_thresh: 0.25\n"
+            "track_low_thresh: 0.1\n"
+            "new_track_thresh: 0.25\n"
+            f"track_buffer: {int(track_buffer)}\n"
+            "match_thresh: 0.8\n"
+            "fuse_score: true\n"
+        )
+        fd, path = tempfile.mkstemp(prefix="vm_tracker_", suffix=".yaml")
+        with os.fdopen(fd, "w") as f:
+            f.write(cfg)
+        return path
 
     def detect(self, frame) -> list[Detection]:
         """Track persons in a BGR frame and return filtered detections."""
-        results = self._model.track(frame, classes=[0], persist=True, verbose=False)
+        results = self._model.track(frame, classes=[0], persist=True, verbose=False,
+                                    tracker=self._tracker_cfg)
         return self._parse(results)
 
     def _parse(self, results) -> list[Detection]:

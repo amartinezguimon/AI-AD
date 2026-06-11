@@ -21,9 +21,10 @@ vision:
   face_width_m: 0.16                # assumed real adult face width (pinhole model)
   yolo_conf_min: 0.45               # reject weak person detections
   aspect_ratio_min: 0.75            # height/width floor (people are taller than wide)
-  ghost_recheck_every: 1            # recheck unconfirmed tracks for a face every Nth frame
-                                    # (1 = every frame, most accurate; raise to save CPU on
-                                    #  persistent non-human detections like a chair)
+  # Passerby (foot-traffic) counting: count a track as a real person once it has
+  # persisted AND either moved or shown a face. Rejects flicker + static furniture.
+  passerby_min_frames: 8            # frames a box must persist before it can count
+  passerby_motion_px: 40            # movement (px) that proves a faceless track is a person
   head_crop_frac: 0.45              # top fraction of the person bbox treated as the head
   head_upscale: 4                   # upscale factor on the head crop (enables 4 m+ detection)
   face_skip_frames: 3               # run MediaPipe face every N frames per person
@@ -31,6 +32,12 @@ vision:
   pose_skip_frames: 8               # run MediaPipe pose every N frames per person
   torso_neutral_span: 0.40          # shoulder span when squarely facing the camera
   torso_min_visibility: 0.40        # min landmark visibility to trust the pose result
+  # Anti double-count when the tracker briefly loses a person and re-detects them
+  # under a new id (occlusion, confidence dip). Two layers work together:
+  track_buffer_frames: 60           # ByteTrack keeps a lost track (same id) this long (~2s @30fps)
+  reassoc_grace_frames: 45          # if a NEW id appears where a lost one was, within this window,
+                                    #   treat it as the same person (heals id switches)
+  reassoc_min_iou: 0.30             # box overlap required to consider them the same person
 
 engagement:
   frame_buffer_size: 3

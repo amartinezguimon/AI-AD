@@ -59,6 +59,11 @@ class EngagementTracker:
         self.total_engaged = 0
         self.qr_active_until = 0.0
         self.qr_trigger_count = 0
+        # Attention banked from people who have left and been dropped, so the
+        # session total stays MONOTONIC even as per-person state is freed. This
+        # is what lets the pipeline forget departed tracks without losing their
+        # attention from the metric buckets.
+        self._departed_attention_s = 0.0
 
     # ── lifecycle ────────────────────────────────────────────────
     def register(self, track_id: int, now: float) -> PersonState:
@@ -76,6 +81,17 @@ class EngagementTracker:
         if track_id in self.people:
             del self.people[track_id]
             self.total_passersby = max(0, self.total_passersby - 1)
+
+    def drop(self, track_id: int) -> None:
+        """Free a departed real person's state WITHOUT touching the counters.
+
+        Unlike forget() (for ghosts), this person was a genuine passerby — their
+        passerby/engaged counts stand. We only bank their attention into the
+        session total and release the per-person memory.
+        """
+        state = self.people.pop(track_id, None)
+        if state is not None:
+            self._departed_attention_s += state.total_engage_s
 
     def is_tracked(self, track_id: int) -> bool:
         return track_id in self.people
@@ -130,7 +146,8 @@ class EngagementTracker:
 
     # ── aggregates (for metric buckets / HUD) ────────────────────
     def total_attention_s(self) -> float:
-        return sum(s.total_engage_s for s in self.people.values())
+        """Session attention: banked (departed) + currently-tracked. Monotonic."""
+        return self._departed_attention_s + sum(s.total_engage_s for s in self.people.values())
 
     def currently_engaged_count(self, active_ids: set[int]) -> int:
         return sum(

@@ -91,6 +91,8 @@ def run(config_path: str, debug: bool = False) -> int:
     frame_idx = 0
     t0 = time.time()
     frames_since = 0
+    consecutive_errors = 0
+    MAX_CONSECUTIVE_ERRORS = 30   # bail (let the OS service restart) if truly stuck
     # For a recorded file we measure engagement in VIDEO time (frame / fps), not
     # wall-clock, so attention seconds are accurate regardless of processing speed.
     # A live camera uses the real clock.
@@ -107,7 +109,20 @@ def run(config_path: str, debug: bool = False) -> int:
 
             now = time.time() if source.realtime else (frame_idx / file_fps)
             last_now = now
-            result = pipeline.process_frame(frame, frame_idx, now)
+            # One bad frame (a MediaPipe hiccup, a corrupt image) must never take
+            # down an unattended store device. Skip it and keep the session alive;
+            # only give up if failures are relentless, so the OS service restarts.
+            try:
+                result = pipeline.process_frame(frame, frame_idx, now)
+                consecutive_errors = 0
+            except Exception as e:                       # noqa: BLE001 - last-resort guard
+                consecutive_errors += 1
+                print(f"[agent] frame {frame_idx} failed ({consecutive_errors}): {e}")
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    print("[agent] too many consecutive frame errors; exiting for restart.")
+                    return 1
+                frame_idx += 1
+                continue
             frame_idx += 1
             frames_since += 1
 

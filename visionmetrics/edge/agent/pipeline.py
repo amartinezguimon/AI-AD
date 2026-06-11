@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 
 from .camera_model import focal_length_px
 from .engagement import EngagementTracker, EngagementParams
+from .tracking import ReconcileParams, TrackReconciler
 from .zone import EngagementZone, zone_confidence
 
 ENGAGE_THRESHOLD = 0.50
@@ -59,8 +60,10 @@ class EngagementPipeline:
         zone: EngagementZone | None,
         engagement_params: EngagementParams,
         fov_h_deg: float,
-        ghost_recheck_every: int = 1,
+        passerby_min_frames: int = 8,
+        passerby_motion_px: int = 40,
         zone_soft_margin: float = 0.30,
+        reconcile_params: ReconcileParams | None = None,
     ):
         self.detector = detector
         self.head_pose = head_pose
@@ -68,15 +71,19 @@ class EngagementPipeline:
         self.classifier = classifier
         self.zone = zone
         self.fov_h_deg = fov_h_deg
-        # Unconfirmed tracks are re-checked for a face every Nth frame they appear.
-        # 1 = check every frame (most accurate). Higher saves CPU on persistent
-        # non-human detections at the cost of slower confirmation.
-        self.ghost_recheck_every = max(1, ghost_recheck_every)
+        self.passerby_min_frames = max(1, passerby_min_frames)
+        self.passerby_motion_px = passerby_motion_px
         self.zone_soft_margin = zone_soft_margin
         self.tracker = EngagementTracker(engagement_params)
+        # Heals ByteTrack id switches: a re-detected person keeps one stable id,
+        # so they are not re-counted or their engagement reset.
+        self.reconciler = TrackReconciler(reconcile_params)
         self._focal_px: float | None = None
-        self._seen: dict[int, int] = {}          # track_id -> frames seen
-        self._confirmed: set[int] = set()         # tracks that have shown a face once
+        self._seen: dict[int, int] = {}            # canonical id -> frames seen
+        self._first_center: dict[int, tuple[float, float]] = {}  # bbox centre when first seen
+        self._moved: set[int] = set()              # canonical ids that have moved enough
+        self._face_seen: set[int] = set()          # canonical ids that have shown a face
+        self._passerby: set[int] = set()           # canonical ids confirmed as real people
         self._qr_fired_this_frame = False
 
     def process_frame(self, frame, frame_idx: int, now: float) -> FrameResult:
@@ -85,29 +92,55 @@ class EngagementPipeline:
 
         self._qr_fired_this_frame = False
         result = FrameResult()
-        for det in self.detector.detect(frame):
-            tid = det.track_id
-            self._seen[tid] = self._seen.get(tid, 0) + 1
-            confirmed = tid in self._confirmed
+        dets = self.detector.detect(frame)
+        # Resolve raw ByteTrack ids to stable canonical ids before anything else,
+        # so a re-detected person is recognised as the same individual.
+        canon = self.reconciler.reconcile([(d.track_id, d.bbox) for d in dets], frame_idx)
+        for det, tid in zip(dets, canon):
+            seen = self._seen[tid] = self._seen.get(tid, 0) + 1
 
-            # A track is only counted/scored once a face has confirmed it's a real
-            # person — this is the false-positive gate (a chair never yields a
-            # face). Crucially it is NOT permanent: an unconfirmed track keeps
-            # being checked, so someone who approaches with their back turned and
-            # only later looks at the display is still picked up.
-            if not confirmed and self._seen[tid] % self.ghost_recheck_every != 0:
+            # Track movement since first seen (cheap, every frame): a real person
+            # walks; furniture doesn't.
+            x1, y1, x2, y2 = det.bbox
+            cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+            fx, fy = self._first_center.setdefault(tid, (cx, cy))
+            if (cx - fx) ** 2 + (cy - fy) ** 2 >= self.passerby_motion_px ** 2:
+                self._moved.add(tid)
+
+            # Anti-flicker debounce: ignore boxes that haven't persisted yet.
+            if seen < self.passerby_min_frames:
                 continue
 
             pose = self.head_pose.analyze(frame, det.bbox, tid, frame_idx, self._focal_px)
-            if pose is not None and not confirmed:
-                self._confirmed.add(tid)
-                confirmed = True
-            if not confirmed:
-                continue   # no confirmed face yet -> not (yet) a counted person
+            if pose is not None:
+                self._face_seen.add(tid)
+
+            # Count as a passerby (foot traffic) the FIRST time the track is a
+            # confirmed real person: persisted + (moved OR shown a face). A static,
+            # faceless box (a chair, a mannequin) is never counted.
+            if tid not in self._passerby:
+                if tid in self._moved or tid in self._face_seen:
+                    self._passerby.add(tid)
+                    self.tracker.register(tid, now)
+                else:
+                    continue   # persisted but static & faceless -> likely not a person
 
             result.active_ids.add(tid)
             torso = self.torso.analyze(frame, det.bbox, tid, frame_idx)
             result.persons.append(self._score(tid, det.bbox, pose, torso, now))
+
+        # Forget tracks gone past the grace window: free their per-track state
+        # everywhere. drop() banks a real person's attention into the session
+        # total first, so counts/attention are preserved while memory is freed.
+        for cid in self.reconciler.expire(frame_idx):
+            self.tracker.drop(cid)
+            self.head_pose.forget(cid)
+            self.torso.forget(cid)
+            self._seen.pop(cid, None)
+            self._first_center.pop(cid, None)
+            self._moved.discard(cid)
+            self._face_seen.discard(cid)
+            self._passerby.discard(cid)
 
         # QR fires when any tracked person crosses the reward threshold this frame.
         result.qr_triggered = self._qr_fired_this_frame

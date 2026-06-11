@@ -13,11 +13,10 @@ Time source: the caller passes ``now`` (unix seconds for a live camera, or
 video-time for a recorded clip). Windows are aligned to multiples of
 ``window_s`` so every device buckets on the same boundaries.
 
-Caveat (documented, deferred): ``total_attention_s`` from the tracker is summed
-over *currently tracked* people, so it is not strictly monotonic — when a track
-is forgotten the sum can dip. Deltas are therefore clamped to >= 0, which can
-slightly undercount attention right after a person leaves. Good enough for the
-pilot; a monotonic lifetime-attention counter is a later hardening item.
+The tracker's ``total_attention_s`` is monotonic (departed people's time is
+banked into the session total before their state is freed — see
+EngagementTracker.drop), so window deltas are well-defined. They are still
+clamped to >= 0 as a defensive guard.
 """
 
 from __future__ import annotations

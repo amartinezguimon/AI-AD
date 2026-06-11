@@ -62,10 +62,55 @@ client sees their stores. Pilot in real stores by August.
   and acceptable, not a defect. NOTE: my prior "walking-toward-webcam false
   positives / fix via geometry+zone" conclusion was WRONG — it was built on the
   bad ~10s figure; the user was in fact looking during those windows.
-- ☐ Known, deferred: YOLO track-id instability counts one person as ~2 passersby
-  (re-identification). Note for Phase 5 hardening.
+- ☑ **Fixed track-id-switch double counting (field-reported by Hector).** A still
+  person dropped for an instant was re-detected under a new ByteTrack id and
+  re-counted (+ engagement reset). Two-layer fix: (1) larger ByteTrack
+  `track_buffer` keeps a lost track's id alive longer (detector.py, configurable);
+  (2) `tracking.py` `TrackReconciler` — a pure IoU-based reconciler that adopts a
+  new id appearing where a track was just lost into that track (grace window +
+  min-IoU, both configurable). The tracker now also `drop()`s departed people to
+  free memory while banking their attention into a monotonic session total
+  (`_departed_attention_s`) — which also resolves the old "attention not
+  monotonic" emitter caveat. 11 new tests (IoU, adoption, expiry, the
+  re-association regression, departed-but-attention-kept). Suite: 66 total.
 - ☐ Known, deferred: MediaPipe finds a face ~54% of frames when subject is very
   close / filling the frame — revisit head-crop logic for close range.
+
+### Passerby vs engagement decoupled (foot-traffic counting)
+- ☑ **Decision: `passersby` = real foot traffic, not just face-confirmed people.**
+  The old design only counted someone once their FACE was seen (to reject ghosts),
+  which under-counts a street (back-turned / far / sideways people never counted —
+  street clip read 49). Now a track counts as a passerby once it has PERSISTED
+  (`passerby_min_frames`) AND either moved (`passerby_motion_px`) or shown a face
+  — rejecting flicker + static furniture (a chair never does both). Engagement
+  still requires a face. Replaced the old `ghost_recheck_every` confirm-on-first-
+  face gate. Verified: street clip 49 → 59 passersby, engaged still 0 (correct);
+  test_store unchanged (1 passerby, 1 engaged). Remaining under-count on the
+  street clip is the **yolov8n (nano) model missing small/far people** + promenade
+  geometry — a bigger YOLO (yolov8s/m via models.yolo) is the lever if needed.
+
+### Robustness audit (field-reported "two people close / hugging" + general)
+- ☑ **Wrong-face in overlapping crops (the reported flicker).** A head crop is
+  taken from one person's bbox; when a second person is very close their face
+  intrudes and MediaPipe (num_faces=1) returned an arbitrary one → engaged
+  flickered between the two. Fixed: detect up to 2 faces and keep the most-
+  centred one (`most_centred_face`), i.e. the crop's rightful owner. No-op for a
+  lone person (verified: clip unchanged at 20.6s).
+- ☑ **Reconciler could fuse two close people (regression I introduced).** Added an
+  ambiguity guard: adopt a new id into a lost track only when there is ONE clear
+  IoU candidate; if two lost tracks overlap, decline (counting a returner twice
+  beats merging two distinct people).
+- ☑ **One bad frame killed the whole agent.** `service.py` now guards
+  `process_frame`: a transient failure is logged and skipped; it bails (exit 1,
+  for the OS service to restart) only after 30 consecutive errors.
+- ☐ Deferred (need a 2-person clip to tune, not blind): (a) aspect-ratio filter
+  may drop a merged 2-person box; (b) ByteTrack ID *swap* between two people who
+  cross/hug (needs appearance re-id, post-August); (c) classifier distance
+  feature is sensitive to bbox jitter (low impact — saturates frontally).
+- ☑ Reviewed clean: geometry/camera_model (eps + clamps), zone, capture (RTSP
+  reconnect), classifier (weights_only), uplink (SQLite lock). Minor note:
+  reading cv2 capture props from the main thread while the pump thread reads is
+  not strictly thread-safe (low risk).
 
 ## Phase 2 — Data contract + uplink (Weeks 3–4) — *done*
 - ☑ `shared/schema.py` — the edge↔cloud contract (heartbeat + metric bucket) *(done early)*

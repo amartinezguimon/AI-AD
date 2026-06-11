@@ -21,6 +21,18 @@ class FakeDetector:
         return list(self._dets)
 
 
+class FakeDetectorSequence:
+    """Returns a different detection list per call (one per processed frame)."""
+    def __init__(self, per_frame):
+        self._per_frame = per_frame
+        self._i = 0
+
+    def detect(self, frame):
+        dets = self._per_frame[min(self._i, len(self._per_frame) - 1)]
+        self._i += 1
+        return list(dets)
+
+
 class FakeHeadPose:
     """Returns a fixed pose, or None to simulate 'no face found'."""
     def __init__(self, pose):
@@ -76,7 +88,8 @@ FRAME = np.zeros((480, 640, 3), dtype=np.uint8)
 STRAIGHT = HeadPose(yaw=0.0, pitch=0.0, distance=0.19, dist_m=1.0, nose_px=(10, 10))
 
 
-def make_pipeline(detector, head_pose, classifier_prob, **params):
+def make_pipeline(detector, head_pose, classifier_prob, *,
+                  passerby_min_frames=1, passerby_motion_px=40, **params):
     return EngagementPipeline(
         detector=detector,
         head_pose=head_pose,
@@ -85,7 +98,8 @@ def make_pipeline(detector, head_pose, classifier_prob, **params):
         zone=None,
         engagement_params=EngagementParams(frame_buffer_size=1, frame_engage_min=1, **params),
         fov_h_deg=70.0,
-        ghost_recheck_every=1,
+        passerby_min_frames=passerby_min_frames,
+        passerby_motion_px=passerby_motion_px,
     )
 
 
@@ -116,14 +130,28 @@ def test_away_person_not_counted():
     assert pipe.tracker.total_engaged == 0
 
 
-def test_unconfirmed_track_never_counted():
-    # A detection that never yields a face (e.g. a chair) is never counted.
+def test_static_faceless_box_never_counted():
+    # A static box that never yields a face (a chair / mannequin) is never a person.
     det = Detection(track_id=9, bbox=(0, 0, 50, 200), confidence=0.9)
-    pipe = make_pipeline(FakeDetector([det]), FakeHeadPose(None), 1.0)
+    pipe = make_pipeline(FakeDetector([det]), FakeHeadPose(None), 1.0,
+                         passerby_min_frames=3, passerby_motion_px=30)
     for i in range(30):
         r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
     assert pipe.tracker.total_passersby == 0
     assert r.persons == []
+
+
+def test_moving_person_without_face_counts_as_passerby():
+    # Foot traffic: someone walks across frame and never shows their face. They
+    # are counted as a passerby (traffic) but never as engaged (needs a face).
+    per_frame = [[Detection(track_id=1, bbox=(100 + i * 20, 50, 180 + i * 20, 400),
+                            confidence=0.9)] for i in range(12)]
+    pipe = make_pipeline(FakeDetectorSequence(per_frame), FakeHeadPose(None), 1.0,
+                         passerby_min_frames=3, passerby_motion_px=30)
+    for i in range(12):
+        pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 1
+    assert pipe.tracker.total_engaged == 0
 
 
 def test_track_confirmed_when_face_appears_later():
@@ -138,6 +166,47 @@ def test_track_confirmed_when_face_appears_later():
     assert pipe.tracker.total_passersby == 1   # confirmed once the face appeared
     assert pipe.tracker.total_engaged == 1     # engagement scored after confirmation
     assert r.persons and r.persons[0].is_engaged
+
+
+def test_reassociation_prevents_double_count_after_id_switch():
+    # Hector's bug: a person is tracked + counted, the detection is lost for a
+    # few frames, then ByteTrack resurrects them under a NEW id. They must NOT be
+    # re-counted, and their engagement must continue (not reset).
+    box = (100, 50, 200, 400)
+    a = Detection(track_id=1, bbox=box, confidence=0.9)
+    b = Detection(track_id=2, bbox=box, confidence=0.9)   # new id, same place
+    per_frame = [
+        [a], [a], [a],        # frames 0-2: id=1, looking -> crosses 2s, counted
+        [], [], [],           # frames 3-5: lost (occlusion / conf dip)
+        [b], [b], [b],        # frames 6-8: reappears as id=2 at the same spot
+    ]
+    pipe = make_pipeline(FakeDetectorSequence(per_frame), FakeHeadPose(STRAIGHT), 1.0,
+                         count_threshold_s=2.0)
+    for i in range(len(per_frame)):
+        r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+
+    assert pipe.tracker.total_passersby == 1   # one person, not two
+    assert pipe.tracker.total_engaged == 1     # counted once, not re-counted
+    assert r.persons and r.persons[0].track_id == 1   # id=2 healed back to 1
+    assert r.persons[0].is_engaged             # engagement continued through the gap
+
+
+def test_departed_person_is_dropped_but_attention_kept():
+    # After the grace window a gone person is freed from memory, but their
+    # banked attention stays in the session total (monotonic).
+    box = (100, 50, 200, 400)
+    a = Detection(track_id=1, bbox=box, confidence=0.9)
+    present = [[a]] * 4                  # frames 0-3: looking (banks ~3s attention)
+    gone = [[]] * 60                     # long enough to exceed the 45-frame grace
+    pipe = make_pipeline(FakeDetectorSequence(present + gone),
+                         FakeHeadPose(STRAIGHT), 1.0, count_threshold_s=2.0)
+    for i in range(4 + 60):
+        pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+
+    assert pipe.tracker.people == {}                 # state freed
+    assert pipe.tracker.total_passersby == 1         # still counted
+    assert pipe.tracker.total_engaged == 1
+    assert pipe.tracker.total_attention_s() >= 3.0   # attention banked, not lost
 
 
 def test_qr_fires_once_after_reward_threshold():

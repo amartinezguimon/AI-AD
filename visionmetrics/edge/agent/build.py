@@ -14,6 +14,7 @@ from .classifier import EngagementClassifier
 from .config import DeviceConfig
 from .models_bootstrap import ensure_models
 from .pipeline import EngagementPipeline
+from .tracking import ReconcileParams
 from .vision.detector import PersonDetector
 from .vision.face import HeadPoseAnalyzer
 from .vision.pose import TorsoAnalyzer
@@ -34,6 +35,7 @@ def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
     v = config.vision
     detector = PersonDetector(
         config.models.yolo, conf_min=v.yolo_conf_min, aspect_ratio_min=v.aspect_ratio_min,
+        track_buffer=v.track_buffer_frames,
     )
     head_pose = HeadPoseAnalyzer(
         config.models.face, face_width_m=v.face_width_m, head_crop_frac=v.head_crop_frac,
@@ -49,6 +51,10 @@ def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
         zone=load_zone(config),
         engagement_params=config.engagement,
         fov_h_deg=config.camera.fov_h_deg,
-        ghost_recheck_every=v.ghost_recheck_every,
+        passerby_min_frames=v.passerby_min_frames,
+        passerby_motion_px=v.passerby_motion_px,
         zone_soft_margin=config.engagement.zone_soft_margin,
+        reconcile_params=ReconcileParams(
+            grace_frames=v.reassoc_grace_frames, min_iou=v.reassoc_min_iou,
+        ),
     )

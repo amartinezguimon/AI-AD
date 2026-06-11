@@ -35,7 +35,11 @@ class VisionConfig:
     face_width_m: float = 0.16
     yolo_conf_min: float = 0.45
     aspect_ratio_min: float = 0.75
-    ghost_recheck_every: int = 1     # recheck unconfirmed tracks every Nth frame (1 = every frame)
+    # Passerby counting (foot traffic): a track counts as a real person once it
+    # has PERSISTED for a few frames AND has either moved or shown a face — which
+    # rejects flickery false boxes and static furniture (a chair never does both).
+    passerby_min_frames: int = 8     # must persist this many frames before counting
+    passerby_motion_px: int = 40     # movement (px) that proves a faceless track is a person
     head_crop_frac: float = 0.45
     head_upscale: int = 4
     face_skip_frames: int = 3
@@ -43,6 +47,10 @@ class VisionConfig:
     pose_skip_frames: int = 8
     torso_neutral_span: float = 0.40
     torso_min_visibility: float = 0.40
+    # Tracking robustness (anti double-count on ByteTrack id switches):
+    track_buffer_frames: int = 60       # ByteTrack keeps a lost track this long (~2s @30fps)
+    reassoc_grace_frames: int = 45      # adopt a new id into a lost track within this window
+    reassoc_min_iou: float = 0.30       # box overlap required to treat them as the same person
 
 
 @dataclass

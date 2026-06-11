@@ -32,6 +32,24 @@ class HeadPose:
     nose_px: tuple[int, int]   # nose position in original-frame coords (for debug draw)
 
 
+def most_centred_face(faces):
+    """Pick the face whose nose sits nearest the horizontal centre of the crop.
+
+    The head ROI is derived from ONE person's bounding box, so that person's
+    head is roughly centred in it. When two people stand very close (a couple,
+    a hug) an adjacent face can intrude into the crop; MediaPipe would otherwise
+    return an arbitrary one and the pose would flicker between the two. Choosing
+    the most-centred face attributes the crop to its rightful owner. With a
+    single face this is a no-op.
+    """
+    best, best_d = faces[0], abs(faces[0][geometry.NOSE].x - 0.5)
+    for f in faces[1:]:
+        d = abs(f[geometry.NOSE].x - 0.5)
+        if d < best_d:
+            best, best_d = f, d
+    return best
+
+
 class HeadPoseAnalyzer:
     def __init__(
         self, model_path: str, *, face_width_m: float, head_crop_frac: float,
@@ -40,7 +58,7 @@ class HeadPoseAnalyzer:
     ):
         base = python.BaseOptions(model_asset_path=model_path)
         opts = vision.FaceLandmarkerOptions(
-            base_options=base, num_faces=1,
+            base_options=base, num_faces=2,   # detect up to 2 so we can disambiguate
             min_face_detection_confidence=min_detection_confidence,
             min_face_presence_confidence=min_detection_confidence,
         )
@@ -86,7 +104,7 @@ class HeadPoseAnalyzer:
         result = self._detector.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb))
         if not result.face_landmarks:
             return None
-        lm = result.face_landmarks[0]
+        lm = most_centred_face(result.face_landmarks)
         yaw, pitch, distance = geometry.extract_face_angles(lm)
         dist_m = distance_metres(distance, rx2 - rx1, focal_px, face_width_m=self.face_width_m)
         nose_px = (rx1 + int(lm[geometry.NOSE].x * roi_w),
