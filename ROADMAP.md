@@ -27,7 +27,7 @@ client sees their stores. Pilot in real stores by August.
 - ☑ Extract pure logic into tested modules:
   - ☑ `geometry.py` — face-angle extraction (shared by agent + calibrate; was duplicated)
   - ☑ `camera_model.py` — pinhole focal/distance (was duplicated)
-  - ☑ `engagement.py` — per-person state machine, windows, thresholds, QR trigger
+  - ☑ `engagement.py` — per-person state machine, windows, thresholds
   - ☑ `zone.py` — soft engagement-zone confidence
   - ☑ `classifier.py` — EngagementNet load + classify (verified vs real trained weights)
 - ☑ `vision/` glue: detector (YOLO), face (MediaPipe), pose (MediaPipe)

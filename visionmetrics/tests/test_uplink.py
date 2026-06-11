@@ -21,7 +21,6 @@ def _bucket(window_start: str, passersby: int = 3) -> MetricBucket:
         engaged=1,
         engagement_rate=33.3,
         total_attention_s=5.0,
-        qr_triggers=0,
     )
 
 

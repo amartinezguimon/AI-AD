@@ -12,7 +12,7 @@ visionmetrics/
 │   │   ├── geometry.py       # head-pose angles (shared, was duplicated)
 │   │   ├── camera_model.py   # pinhole distance model
 │   │   ├── zone.py           # soft engagement-zone confidence
-│   │   ├── engagement.py     # per-person state machine (windows, counting, QR)
+│   │   ├── engagement.py     # per-person state machine (windows, counting)
 │   │   ├── classifier.py     # PyTorch EngagementNet load + scoring
 │   │   ├── config.py         # typed loader for device.yaml
 │   │   ├── capture.py        # video source: USB / RTSP / file, auto-reconnect

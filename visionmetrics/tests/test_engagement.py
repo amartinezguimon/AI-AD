@@ -38,19 +38,6 @@ def test_counted_once_at_threshold():
     assert not r3.newly_counted and t.total_engaged == 1
 
 
-def test_qr_triggers_once_then_cooldown():
-    t = fresh(frame_engage_min=1, count_threshold_s=2.0,
-              reward_threshold_s=5.0, qr_duration_s=10.0)
-    t.update(1, raw_engaged=True, now=0.0)
-    r_before = t.update(1, raw_engaged=True, now=4.0)
-    assert not r_before.qr_triggered
-    r_fire = t.update(1, raw_engaged=True, now=5.0)
-    assert r_fire.qr_triggered and t.qr_trigger_count == 1
-    # Within the cooldown window: no re-trigger.
-    r_cool = t.update(1, raw_engaged=True, now=6.0)
-    assert not r_cool.qr_triggered and t.qr_trigger_count == 1
-
-
 def test_attention_banks_across_multiple_windows():
     # buffer_size=1 disables temporal smoothing so we isolate the windowing math.
     t = fresh(frame_buffer_size=1, frame_engage_min=1, count_threshold_s=999)

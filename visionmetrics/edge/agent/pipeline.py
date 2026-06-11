@@ -43,7 +43,6 @@ class PersonResult:
 class FrameResult:
     persons: list[PersonResult] = field(default_factory=list)
     active_ids: set[int] = field(default_factory=set)
-    qr_triggered: bool = False
 
 
 def _tier(prob: float) -> str:
@@ -84,13 +83,11 @@ class EngagementPipeline:
         self._moved: set[int] = set()              # canonical ids that have moved enough
         self._face_seen: set[int] = set()          # canonical ids that have shown a face
         self._passerby: set[int] = set()           # canonical ids confirmed as real people
-        self._qr_fired_this_frame = False
 
     def process_frame(self, frame, frame_idx: int, now: float) -> FrameResult:
         if self._focal_px is None:
             self._focal_px = focal_length_px(frame.shape[1], self.fov_h_deg)
 
-        self._qr_fired_this_frame = False
         result = FrameResult()
         dets = self.detector.detect(frame)
         # Resolve raw ByteTrack ids to stable canonical ids before anything else,
@@ -142,8 +139,6 @@ class EngagementPipeline:
             self._face_seen.discard(cid)
             self._passerby.discard(cid)
 
-        # QR fires when any tracked person crosses the reward threshold this frame.
-        result.qr_triggered = self._qr_fired_this_frame
         return result
 
     # ── scoring ──────────────────────────────────────────────────
@@ -169,8 +164,6 @@ class EngagementPipeline:
             person.nose_px = pose.nose_px
 
         update = self.tracker.update(tid, raw_engaged, now, prob=engage_prob)
-        if update.qr_triggered:
-            self._qr_fired_this_frame = True
 
         person.engage_prob = engage_prob
         person.zone_conf = zone_conf

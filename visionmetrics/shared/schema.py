@@ -47,7 +47,6 @@ class MetricBucket:
     engaged: int                   # people who crossed the attention threshold
     engagement_rate: float         # engaged / passersby * 100
     total_attention_s: float
-    qr_triggers: int
 
     @property
     def idempotency_key(self) -> str:

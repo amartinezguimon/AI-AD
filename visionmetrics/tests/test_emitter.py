@@ -27,7 +27,7 @@ def test_bucket_emitted_on_window_rollover_with_deltas():
     e.sample(SessionCounters(passersby=2, engaged=1, total_attention_s=3.0), now=10.0)
     # Cross into the next hour. Counters grew during window 0.
     out = e.sample(
-        SessionCounters(passersby=10, engaged=4, total_attention_s=30.0, qr_triggers=2),
+        SessionCounters(passersby=10, engaged=4, total_attention_s=30.0),
         now=WIN + 5.0,
     )
     assert len(out) == 1
@@ -35,7 +35,6 @@ def test_bucket_emitted_on_window_rollover_with_deltas():
     assert b.passersby == 8          # 10 - 2
     assert b.engaged == 3            # 4 - 1
     assert b.total_attention_s == 27.0
-    assert b.qr_triggers == 2
     assert b.engagement_rate == round(3 / 8 * 100, 1)
 
 

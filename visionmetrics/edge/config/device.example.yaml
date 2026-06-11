@@ -43,8 +43,6 @@ engagement:
   frame_buffer_size: 3
   frame_engage_min: 1
   count_threshold_s: 2.0            # attention before counting as "engaged"
-  reward_threshold_s: 5.0           # attention before the QR/reward screen fires
-  qr_duration_s: 10.0
   zone_soft_margin: 0.30            # width of the soft engagement-zone edge
 
 models:

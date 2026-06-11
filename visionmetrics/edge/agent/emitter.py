@@ -1,7 +1,7 @@
 """Metric emitter — turns the tracker's running totals into time-windowed buckets.
 
-The pipeline keeps *cumulative* session counters (passersby, engaged, attention,
-qr_triggers). The cloud, however, wants **per-window aggregates** (e.g. one row
+The pipeline keeps *cumulative* session counters (passersby, engaged,
+attention). The cloud, however, wants **per-window aggregates** (e.g. one row
 per hour) so a dashboard can plot a day. This module bridges the two: it watches
 the cumulative counters and, every time a time window closes, emits one
 ``MetricBucket`` carrying the *delta* for that window.
@@ -36,7 +36,6 @@ class SessionCounters:
     passersby: int = 0
     engaged: int = 0
     total_attention_s: float = 0.0
-    qr_triggers: int = 0
 
 
 def _iso(ts: float) -> str:
@@ -83,7 +82,7 @@ class MetricEmitter:
             return None
         bucket = self._make_bucket(self._window_idx, self._baseline, counters)
         self._baseline = counters
-        if bucket.passersby == 0 and bucket.engaged == 0 and bucket.qr_triggers == 0 \
+        if bucket.passersby == 0 and bucket.engaged == 0 \
                 and bucket.total_attention_s == 0.0:
             return None                            # don't ship an empty bucket
         return bucket
@@ -94,7 +93,6 @@ class MetricEmitter:
         pax = max(0, cur.passersby - base.passersby)
         eng = max(0, cur.engaged - base.engaged)
         attn = max(0.0, cur.total_attention_s - base.total_attention_s)
-        qr = max(0, cur.qr_triggers - base.qr_triggers)
         rate = round(eng / pax * 100, 1) if pax > 0 else 0.0
         return MetricBucket(
             schema_version=SCHEMA_VERSION,
@@ -106,5 +104,4 @@ class MetricEmitter:
             engaged=eng,
             engagement_rate=rate,
             total_attention_s=round(attn, 1),
-            qr_triggers=qr,
         )

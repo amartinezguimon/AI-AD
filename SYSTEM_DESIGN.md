@@ -45,7 +45,7 @@ the data layer, not just the UI.
 - `devices` (id=device_id, org_id, store_id, api_key_hash, agent_version, last_seen_at, status)
 - `cameras` (id, device_id, fov_h_deg, ... per-camera calibration)
 - `metric_buckets` (org_id, store_id, device_id, window_start, window_end,
-  passersby, engaged, engagement_rate, total_attention_s, qr_triggers,
+  passersby, engaged, engagement_rate, total_attention_s,
   PRIMARY KEY(device_id, window_start))  ← matches `shared/schema.py`
 - `heartbeats` (device_id, sent_at, fps, camera_ok, ...) — latest-wins liveness
 - `platform_staff` (id, email, password_hash) — the cross-tenant admins (you)

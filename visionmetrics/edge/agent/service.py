@@ -62,7 +62,6 @@ def run(config_path: str, debug: bool = False) -> int:
             passersby=t.total_passersby,
             engaged=t.total_engaged,
             total_attention_s=t.total_attention_s(),
-            qr_triggers=t.qr_trigger_count,
         )
 
     def _dispatch(bucket) -> None:
@@ -72,7 +71,7 @@ def run(config_path: str, debug: bool = False) -> int:
         else:
             print(f"[agent] bucket {bucket.window_start} pax={bucket.passersby} "
                   f"engaged={bucket.engaged} rate={bucket.engagement_rate}% "
-                  f"attention={bucket.total_attention_s}s qr={bucket.qr_triggers}")
+                  f"attention={bucket.total_attention_s}s")
 
     last_now = 0.0
     last_heartbeat = 0.0
@@ -174,7 +173,7 @@ def run(config_path: str, debug: bool = False) -> int:
 
     t = pipeline.tracker
     print(f"[agent] stopped. passersby={t.total_passersby} engaged={t.total_engaged} "
-          f"attention={t.total_attention_s():.0f}s qr_triggers={t.qr_trigger_count}")
+          f"attention={t.total_attention_s():.0f}s")
     return 0
 
 

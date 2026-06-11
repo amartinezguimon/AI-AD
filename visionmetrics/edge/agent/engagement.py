@@ -2,15 +2,14 @@
 
 This is the analytics core: given a per-frame "raw engaged" boolean for each
 tracked person, it maintains a smoothed engagement state, accumulates attention
-time across multiple looking windows, counts each person once after they cross
-the attention threshold, and decides when to fire the customer-facing reward
-(QR) trigger.
+time across multiple looking windows, and counts each person once after they
+cross the attention threshold.
 
 It is deliberately pure: no camera, no torch, no OpenCV. It takes booleans and
 timestamps. That makes every counting rule unit-testable with a fake clock.
 
 Extracted behavior-preserving from main.py (the per-person block around the
-frame buffer + engagement-time tracking + QR trigger).
+frame buffer + engagement-time tracking).
 """
 
 from __future__ import annotations
@@ -23,8 +22,6 @@ class EngagementParams:
     frame_buffer_size: int = 3          # look at the last N frames
     frame_engage_min: int = 1           # >= this many engaged frames in the buffer => engaged
     count_threshold_s: float = 2.0      # attention before a person counts as "engaged"
-    reward_threshold_s: float = 5.0     # attention before the QR/reward screen fires
-    qr_duration_s: float = 10.0         # how long the QR stays up once fired
     zone_soft_margin: float = 0.30      # width of the soft engagement-zone edge (used by pipeline)
 
 
@@ -46,7 +43,6 @@ class FrameUpdate:
     is_engaged: bool
     total_engage_s: float
     newly_counted: bool          # this person just crossed count_threshold_s
-    qr_triggered: bool           # the reward screen should (re)appear now
 
 
 class EngagementTracker:
@@ -57,8 +53,6 @@ class EngagementTracker:
         self.people: dict[int, PersonState] = {}
         self.total_passersby = 0
         self.total_engaged = 0
-        self.qr_active_until = 0.0
-        self.qr_trigger_count = 0
         # Attention banked from people who have left and been dropped, so the
         # session total stays MONOTONIC even as per-person state is freed. This
         # is what lets the pipeline forget departed tracks without losing their
@@ -129,19 +123,11 @@ class EngagementTracker:
             self.total_engaged += 1
             newly_counted = True
 
-        # Fire the reward (QR) trigger once, with a cooldown (single-slot pattern).
-        qr_triggered = False
-        if state.total_engage_s >= p.reward_threshold_s and now > self.qr_active_until:
-            self.qr_active_until = now + p.qr_duration_s
-            self.qr_trigger_count += 1
-            qr_triggered = True
-
         state.currently_engaged = is_engaged
         return FrameUpdate(
             is_engaged=is_engaged,
             total_engage_s=state.total_engage_s,
             newly_counted=newly_counted,
-            qr_triggered=qr_triggered,
         )
 
     # ── aggregates (for metric buckets / HUD) ────────────────────

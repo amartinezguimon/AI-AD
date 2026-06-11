@@ -65,7 +65,7 @@ python -m visionmetrics.edge.agent.service --config visionmetrics/edge/config/de
 - A window opens showing the video, person boxes, and live counters
   (passersby / engaged / attention).
 - **Quit** with `q` on the window, or `Ctrl-C` in the terminal. A summary
-  (total passersby, engaged, attention, QR triggers) prints on exit.
+  (total passersby, engaged, attention) prints on exit.
 
 ## 7. What to try
 - **Walk past without looking** → counts as a *passerby*, not *engaged*.

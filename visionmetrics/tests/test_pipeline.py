@@ -1,7 +1,7 @@
 """Tests for EngagementPipeline orchestration using fake vision components.
 
 No models, no camera, no GPU — we inject fakes and assert the pipeline wires
-the 7 layers together correctly (scoring, counting, ghost blacklisting, QR).
+the layers together correctly (scoring, counting, ghost rejection, re-association).
 """
 
 import numpy as np
@@ -207,15 +207,3 @@ def test_departed_person_is_dropped_but_attention_kept():
     assert pipe.tracker.total_passersby == 1         # still counted
     assert pipe.tracker.total_engaged == 1
     assert pipe.tracker.total_attention_s() >= 3.0   # attention banked, not lost
-
-
-def test_qr_fires_once_after_reward_threshold():
-    det = Detection(track_id=3, bbox=(100, 50, 200, 400), confidence=0.9)
-    pipe = make_pipeline(FakeDetector([det]), FakeHeadPose(STRAIGHT), 1.0,
-                         count_threshold_s=2.0, reward_threshold_s=5.0, qr_duration_s=10.0)
-    fired = []
-    for i in range(7):
-        r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
-        fired.append(r.qr_triggered)
-    assert fired[5] is True               # crosses 5.0s at now=5
-    assert sum(1 for f in fired if f) == 1  # exactly once (cooldown)

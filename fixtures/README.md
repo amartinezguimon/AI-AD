@@ -9,7 +9,7 @@ Record however is easiest — Camo Studio's own recording, QuickTime, or your
 phone — and export an `.mp4`. Aim to capture:
 
 - you walking **up and looking at the camera** for ~6+ seconds (so it counts as
-  engaged and fires the QR trigger at 5 s),
+  engaged),
 - looking **away / to the sides** (should read as not engaged),
 - walking **away / out of frame**,
 - if possible, **someone passing by in the background** without looking
