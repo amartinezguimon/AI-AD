@@ -8,6 +8,7 @@ import numpy as np
 
 from visionmetrics.edge.agent.engagement import EngagementParams
 from visionmetrics.edge.agent.pipeline import EngagementPipeline
+from visionmetrics.edge.agent.zone import GazeReference
 from visionmetrics.edge.agent.vision.detector import Detection
 from visionmetrics.edge.agent.vision.face import HeadPose
 from visionmetrics.edge.agent.vision.pose import TorsoResult, NEUTRAL
@@ -84,22 +85,30 @@ class FakeClassifier:
         return self._prob
 
 
+class YawSensitiveClassifier:
+    """Engaged only when the (re-centred) yaw is near 0 — to test gaze recentering."""
+    def probability(self, yaw, pitch, distance):
+        return 1.0 if abs(yaw) < 0.1 else 0.0
+
+
 FRAME = np.zeros((480, 640, 3), dtype=np.uint8)
 STRAIGHT = HeadPose(yaw=0.0, pitch=0.0, distance=0.19, dist_m=1.0, nose_px=(10, 10))
 
 
 def make_pipeline(detector, head_pose, classifier_prob, *,
-                  passerby_min_frames=1, passerby_motion_px=40, **params):
+                  passerby_min_frames=1, passerby_motion_px=40,
+                  classifier=None, gaze_reference=None, **params):
     return EngagementPipeline(
         detector=detector,
         head_pose=head_pose,
         torso=FakeTorso(),
-        classifier=FakeClassifier(classifier_prob),
+        classifier=classifier or FakeClassifier(classifier_prob),
         zone=None,
         engagement_params=EngagementParams(frame_buffer_size=1, frame_engage_min=1, **params),
         fov_h_deg=70.0,
         passerby_min_frames=passerby_min_frames,
         passerby_motion_px=passerby_motion_px,
+        gaze_reference=gaze_reference,
     )
 
 
@@ -189,6 +198,29 @@ def test_reassociation_prevents_double_count_after_id_switch():
     assert pipe.tracker.total_engaged == 1     # counted once, not re-counted
     assert r.persons and r.persons[0].track_id == 1   # id=2 healed back to 1
     assert r.persons[0].is_engaged             # engagement continued through the gap
+
+
+def test_gaze_recentering_lets_offaxis_camera_detect_looking():
+    # Corner-mounted camera: looking AT the window reads as a turned head (raw yaw
+    # 0.4). The classifier only fires near 0. Without re-centring it misses it;
+    # with the window calibrated at yaw_center=0.4 it maps to ~0 and counts.
+    det = Detection(track_id=1, bbox=(100, 50, 200, 400), confidence=0.9)
+    looking_offaxis = HeadPose(yaw=0.4, pitch=0.0, distance=0.19, dist_m=1.0, nose_px=(10, 10))
+
+    no_cal = make_pipeline(FakeDetector([det]), FakeHeadPose(looking_offaxis), 0,
+                           classifier=YawSensitiveClassifier(), count_threshold_s=2.0)
+    for i in range(4):
+        no_cal.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert no_cal.tracker.total_engaged == 0          # missed without calibration
+
+    calibrated = make_pipeline(FakeDetector([det]), FakeHeadPose(looking_offaxis), 0,
+                               classifier=YawSensitiveClassifier(),
+                               gaze_reference=GazeReference(yaw_center=0.4),
+                               count_threshold_s=2.0)
+    for i in range(4):
+        r = calibrated.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert calibrated.tracker.total_engaged == 1      # re-centred -> detected
+    assert r.persons[0].is_engaged
 
 
 def test_departed_person_is_dropped_but_attention_kept():

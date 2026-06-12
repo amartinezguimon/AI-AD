@@ -1,8 +1,25 @@
-"""Tests for soft engagement-zone confidence (pure)."""
+"""Tests for soft engagement-zone confidence + gaze re-centring (pure)."""
 
 import math
 
-from visionmetrics.edge.agent.zone import EngagementZone, zone_confidence
+from visionmetrics.edge.agent.zone import EngagementZone, GazeReference, zone_confidence
+
+
+def test_gaze_reference_defaults_to_no_shift():
+    g = GazeReference()
+    assert g.recenter(0.4, 0.1) == (0.4, 0.1)
+
+
+def test_gaze_reference_subtracts_window_centre():
+    g = GazeReference(yaw_center=0.4, pitch_center=0.12)
+    # someone looking at the window centre (raw 0.4, 0.12) -> straight ahead for the model
+    assert g.recenter(0.4, 0.12) == (0.0, 0.0)
+
+
+def test_gaze_reference_from_config():
+    g = GazeReference.from_config({"yaw_center": -0.3, "pitch_center": 0.1})
+    assert (round(g.yaw_center, 3), round(g.pitch_center, 3)) == (-0.3, 0.1)
+    assert GazeReference.from_config(None) == GazeReference()
 
 ZONE = EngagementZone(
     yaw_min=-0.2, yaw_max=0.2, pitch_min=-0.1, pitch_max=0.1,

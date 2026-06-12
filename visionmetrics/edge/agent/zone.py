@@ -13,6 +13,38 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class GazeReference:
+    """Head-pose direction recorded when looking at the WINDOW CENTRE at calibration.
+
+    The classifier was trained with subjects facing the camera (yaw≈0, pitch≈0 =
+    looking). In a real store the camera sits off to one side / in a corner, so
+    looking at the window is NOT looking at the camera — the head is turned by a
+    fixed offset. Subtracting that offset (``recenter``) before the classifier maps
+    "looking at the window" back onto the model's "straight ahead", so the same
+    trained model works from any camera position.
+
+    Defaults to (0, 0) = no shift (camera roughly on the display, or uncalibrated),
+    which preserves the prior behaviour exactly.
+    """
+    yaw_center: float = 0.0
+    pitch_center: float = 0.0
+
+    @classmethod
+    def from_config(cls, engagement_zone: dict | None) -> "GazeReference":
+        """Build from the ``engagement_zone`` block of a calibration config."""
+        if not engagement_zone:
+            return cls()
+        return cls(
+            yaw_center=engagement_zone.get("yaw_center", 0.0),
+            pitch_center=engagement_zone.get("pitch_center", 0.0),
+        )
+
+    def recenter(self, yaw: float, pitch: float) -> tuple[float, float]:
+        """Shift live angles so the window direction becomes (0, 0) for the model."""
+        return yaw - self.yaw_center, pitch - self.pitch_center
+
+
+@dataclass(frozen=True)
 class EngagementZone:
     """Calibrated boundaries for one display, produced by calibration."""
     yaw_min: float

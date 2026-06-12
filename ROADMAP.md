@@ -184,12 +184,15 @@ wide × ~2 m tall, the camera must sit **discreetly in a corner** (heavily off-a
 elevated), and people **walk past sweeping their gaze edge-to-edge** from varying
 positions — not standing centred at 2 m. This breaks the "point display + camera
 beside it" assumption. Honest assessment of what it takes:
-- **Achievable foundation:** (a) calibrate the window as a REGION (record its
-  edges, not one centre point) → a wide angular zone the sweep stays inside;
-  (b) **re-centre** the model on the window — subtract the calibrated window
-  direction from yaw/pitch before the classifier, so a corner-mounted camera
-  still maps "looking at the window" onto the model's "straight ahead". The code
-  feeds RAW angles today (no re-centre) — this is the change to make.
+- **Achievable foundation — ☑ DONE (code) / ☐ tune in store:** (a) the zone
+  already supports a REGION (yaw_min/max etc. from window edges via calibrate.py)
+  → a wide angular band the sweep stays inside; (b) **re-centre IMPLEMENTED**
+  (`zone.GazeReference`, wired in `pipeline._score` + `build.load_gaze_reference`):
+  subtracts the calibrated window direction (`engagement_zone.yaw_center/
+  pitch_center`) from yaw/pitch before the classifier, so a corner camera maps
+  "looking at the window" onto the model's "straight ahead". Defaults to (0,0) =
+  no shift when uncalibrated (verified backward-compatible: test clip unchanged).
+  Per-store tuning = the calibration JSON; values await a real install to set.
 - **Honest ceilings (can't trick away):** *parallax* — a fixed angular zone is
   calibrated for ~one standing position; with a wide window + people at any
   position the true "looking" angle shifts, so a single zone is an approximation,

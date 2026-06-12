@@ -18,16 +18,29 @@ from .tracking import ReconcileParams
 from .vision.detector import PersonDetector
 from .vision.face import HeadPoseAnalyzer
 from .vision.pose import TorsoAnalyzer
-from .zone import EngagementZone
+from .zone import EngagementZone, GazeReference
 
 
-def load_zone(config: DeviceConfig) -> EngagementZone | None:
-    """Load the per-store calibration zone, or None if absent."""
+def _load_calibration(config: DeviceConfig) -> dict | None:
     path = config.calibration_config_path
     if not path or not Path(path).exists():
         return None
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    return EngagementZone.from_config(raw.get("derived"))
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def load_zone(config: DeviceConfig) -> EngagementZone | None:
+    """Load the per-store calibration zone (the window's angular span), or None."""
+    raw = _load_calibration(config)
+    return EngagementZone.from_config(raw.get("derived")) if raw else None
+
+
+def load_gaze_reference(config: DeviceConfig) -> GazeReference:
+    """Load the per-store window-centre direction used to re-centre the classifier.
+
+    Absent calibration => (0, 0) (no shift), preserving uncalibrated behaviour.
+    """
+    raw = _load_calibration(config)
+    return GazeReference.from_config(raw.get("engagement_zone")) if raw else GazeReference()
 
 
 def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
@@ -49,6 +62,7 @@ def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
     return EngagementPipeline(
         detector=detector, head_pose=head_pose, torso=torso, classifier=classifier,
         zone=load_zone(config),
+        gaze_reference=load_gaze_reference(config),
         engagement_params=config.engagement,
         fov_h_deg=config.camera.fov_h_deg,
         passerby_min_frames=v.passerby_min_frames,

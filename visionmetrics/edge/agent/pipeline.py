@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from .camera_model import focal_length_px
 from .engagement import EngagementTracker, EngagementParams
 from .tracking import ReconcileParams, TrackReconciler
-from .zone import EngagementZone, zone_confidence
+from .zone import EngagementZone, GazeReference, zone_confidence
 
 ENGAGE_THRESHOLD = 0.50
 
@@ -63,12 +63,16 @@ class EngagementPipeline:
         passerby_motion_px: int = 40,
         zone_soft_margin: float = 0.30,
         reconcile_params: ReconcileParams | None = None,
+        gaze_reference: GazeReference | None = None,
     ):
         self.detector = detector
         self.head_pose = head_pose
         self.torso = torso
         self.classifier = classifier
         self.zone = zone
+        # Per-store re-centring of head angles onto the window direction. Defaults
+        # to no shift (uncalibrated / camera on the display).
+        self.gaze = gaze_reference or GazeReference()
         self.fov_h_deg = fov_h_deg
         self.passerby_min_frames = max(1, passerby_min_frames)
         self.passerby_motion_px = passerby_motion_px
@@ -151,7 +155,11 @@ class EngagementPipeline:
         engage_prob = 0.0
         zone_conf = 1.0
         if pose is not None:
-            prob = self.classifier.probability(pose.yaw, pose.pitch, pose.distance)
+            # Re-centre the head angles onto the calibrated window direction before
+            # the classifier, which learned "straight ahead = looking". The zone
+            # check below stays on RAW angles (its bounds are in camera space).
+            yaw_c, pitch_c = self.gaze.recenter(pose.yaw, pose.pitch)
+            prob = self.classifier.probability(yaw_c, pitch_c, pose.distance)
             torso_weight = 0.40 + 0.60 * torso.confidence
             prob *= torso_weight
             zone_conf = zone_confidence(
