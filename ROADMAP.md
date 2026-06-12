@@ -179,10 +179,33 @@ MLP learns from those. The biggest blind spot: it reads **head direction, not ey
 gaze** — someone can face forward but look elsewhere with their eyes. Making the
 net bigger on the same 3 numbers buys almost nothing.
 
+**Hard real-world requirement (founder spec):** the window can be several metres
+wide × ~2 m tall, the camera must sit **discreetly in a corner** (heavily off-axis,
+elevated), and people **walk past sweeping their gaze edge-to-edge** from varying
+positions — not standing centred at 2 m. This breaks the "point display + camera
+beside it" assumption. Honest assessment of what it takes:
+- **Achievable foundation:** (a) calibrate the window as a REGION (record its
+  edges, not one centre point) → a wide angular zone the sweep stays inside;
+  (b) **re-centre** the model on the window — subtract the calibrated window
+  direction from yaw/pitch before the classifier, so a corner-mounted camera
+  still maps "looking at the window" onto the model's "straight ahead". The code
+  feeds RAW angles today (no re-centre) — this is the change to make.
+- **Honest ceilings (can't trick away):** *parallax* — a fixed angular zone is
+  calibrated for ~one standing position; with a wide window + people at any
+  position the true "looking" angle shifts, so a single zone is an approximation,
+  not perfect. True per-person precision needs each person's floor position + the
+  window's 3D geometry (a much bigger system). And *head vs eyes* — on a wide
+  window people sweep with their EYES; head-pose alone won't be crisp, so **eye
+  gaze (MediaPipe Iris) becomes necessary here**, not optional.
+- **Path to "crisp":** foundation above → validate+tune in the real store against
+  the eval set → add eye gaze. Not achievable by a calibration trick alone; the
+  aggregate metric tolerates per-instant imperfection, per-person perfection does
+  not come free.
+
 Priority order (do NOT jump to the bottom):
 1. **Deployment geometry + per-store calibration (the zone).** Biggest real-world
-   accuracy gain, ~free. Camera beside the display; "looking" = looking at the
-   display, adapted per store via the zone — not by retraining.
+   accuracy gain, ~free. Re-centre on the window + calibrate window edges (see
+   founder spec above); "looking" = looking at the window, adapted per store.
 2. **Build a real labeled EVAL set + metric FIRST.** ~200–300 held-out examples
    from realistic conditions the model never trains on, scored with precision/
    recall on "looking". *Step 0 of any accuracy work — you can't improve what you
