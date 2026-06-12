@@ -168,6 +168,45 @@ client sees their stores. Pilot in real stores by August.
 
 ---
 
+## Model accuracy strategy — how to actually make "looking" precise
+> Honest senior-ML assessment. The current model is a fine, CPU-cheap **v1**, but
+> it is **not** the maximally-accurate approach. Pursue in this order — earlier
+> items beat later ones on real-world accuracy per euro/hour.
+
+**The real bottleneck is the features, not the classifier.** A face is compressed
+into 3 hand-crafted numbers (yaw, pitch, distance from cheekbones/nose) and a tiny
+MLP learns from those. The biggest blind spot: it reads **head direction, not eye
+gaze** — someone can face forward but look elsewhere with their eyes. Making the
+net bigger on the same 3 numbers buys almost nothing.
+
+Priority order (do NOT jump to the bottom):
+1. **Deployment geometry + per-store calibration (the zone).** Biggest real-world
+   accuracy gain, ~free. Camera beside the display; "looking" = looking at the
+   display, adapted per store via the zone — not by retraining.
+2. **Build a real labeled EVAL set + metric FIRST.** ~200–300 held-out examples
+   from realistic conditions the model never trains on, scored with precision/
+   recall on "looking". *Step 0 of any accuracy work — you can't improve what you
+   don't measure; without it every "improvement" is guesswork.*
+3. **More + diverse + real data** (consenting people; later real-store footage).
+   Diversity (glasses, hats, ages, heights, distances 1–5 m, lighting) > volume.
+   Current set = 1127 self-collected lab samples — too small/narrow to generalize.
+4. **Highest-ROI model upgrade: add eye gaze (MediaPipe Iris).** Reuses the stack;
+   the single biggest model-side accuracy jump. Do it only after 1–3 exist.
+5. **Learned 6DoF head pose** (e.g. 6DRepNet) to replace the jittery 3-number
+   geometry. Incremental.
+6. **Theoretical max: end-to-end CNN on the head crop** (pixels → P(engaged),
+   no hand-crafted features). What a big player would do — but needs thousands of
+   real labeled images + beefier hardware (costs the cheap mini-PC). Premature now.
+
+**Traps to avoid:** (a) gold-plating the model before real data + eval exists — a
+fancier model on 1127 lab samples still fails in a real store; (b) over-promising
+per-frame precision on an inherently fuzzy target — the business metric is the
+*aggregate trend*, which the smoothed head-pose proxy likely already serves.
+Labeling tool already exists: `src/training/data_collector.py` (press L/A or
+auto-record per label; you are the ground truth). Retrain = `src/training/train.py`
+→ drop in `models/engagement_model.pth`. *(This work lands around Phase 5, once a
+real install exists to collect from and to evaluate against.)*
+
 ## Deferred until after August (scope discipline)
 Stripe/billing · OTA auto-updates · self-service multi-tenant signup · model retrain from scratch.
 
