@@ -202,10 +202,16 @@ Priority order (do NOT jump to the bottom):
 fancier model on 1127 lab samples still fails in a real store; (b) over-promising
 per-frame precision on an inherently fuzzy target — the business metric is the
 *aggregate trend*, which the smoothed head-pose proxy likely already serves.
-Labeling tool already exists: `src/training/data_collector.py` (press L/A or
-auto-record per label; you are the ground truth). Retrain = `src/training/train.py`
-→ drop in `models/engagement_model.pth`. *(This work lands around Phase 5, once a
-real install exists to collect from and to evaluate against.)*
+Labeling tool: **`visionmetrics/training/collect.py`** — built on the production
+vision pipeline (same detector + head-pose code the agent runs), so it captures
+the same far-range faces inference can AND the recorded features match inference
+1:1 (no train/serve skew). Captures continuously (L/A single shots or directed
+auto-capture by label); you are the ground truth. Replaces the legacy
+`src/training/data_collector.py` (which duplicated the pipeline and single-shot
+recording made it miss intermittent far-range hits). Retrain = `src/training/
+train.py` → drop in `models/engagement_model.pth`. Tip: collect the bulk via
+directed auto, but build the held-out EVAL set via careful manual L/A (it's the
+measuring stick). *(Lands around Phase 5, once a real install exists.)*
 
 ## Deferred until after August (scope discipline)
 Stripe/billing · OTA auto-updates · self-service multi-tenant signup · model retrain from scratch.
