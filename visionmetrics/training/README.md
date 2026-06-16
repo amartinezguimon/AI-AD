@@ -28,6 +28,12 @@ python -m visionmetrics.training.collect --collector hector
 When he quits, the tool prints the **full path of the one file** it saved. Hector
 just **sends that file to you by WhatsApp or email** — nothing else.
 
+> **What does "looking" mean during collection?** There's no window yet — the
+> **camera stands in for the window**, so "looking" = head pointed **at the camera**
+> (yaw/pitch ≈ 0). The model learns "head on target = looking"; each real store's
+> actual window direction is mapped later at calibration (GazeReference re-centring).
+> Note this is *head* direction, not eye gaze (a known ceiling — see ROADMAP).
+
 **You — merge + retrain (you own the code).** Drop the file(s) he sends into
 `data/raw_sessions/`, then:
 
