@@ -209,17 +209,39 @@ def run(camera, output=None, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
 
 
 def _draw_hud(cv2, frame, pose, tier, auto, label, writer, glasses="unknown", headwear="unknown"):
-    put = lambda txt, y, col=(255, 255, 255), s=0.6: cv2.putText(
-        frame, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, s, col, 2)
+    """Self-explanatory on-screen overlay (Spanish) so the collector needs no manual."""
+    h, w = frame.shape[:2]
+
+    def put(txt, x, y, col=(255, 255, 255), s=0.6, th=2):
+        cv2.putText(frame, txt, (x, y), cv2.FONT_HERSHEY_SIMPLEX, s, col, th, cv2.LINE_AA)
+
+    def band(y0, y1, alpha=0.5):
+        ov = frame.copy()
+        cv2.rectangle(ov, (0, y0), (w, y1), (0, 0, 0), -1)
+        cv2.addWeighted(ov, alpha, frame, 1 - alpha, 0, frame)
+
+    # ── top info panel ──
+    band(0, 116)
+    put("MIRA A LA CAMARA = 'mirando'", 12, 28, (0, 220, 255), 0.62)
     if pose is not None:
-        put(f"yaw {pose.yaw:+.3f}  pitch {pose.pitch:+.3f}  dist {pose.distance:.4f}", 30)
-        put(f"[{tier}]", 58, (0, 220, 80))
+        put(f"cara OK   [{tier}]", 12, 54, (0, 220, 80), 0.55)
     else:
-        put("no face", 30, (0, 0, 255))
-    mode = f"AUTO: {'look' if label == 1 else 'away'}" if auto else "manual"
-    put(mode, 86, (0, 220, 100) if auto else (180, 180, 180))
-    put(f"look {writer.counts[1]}  away {writer.counts[0]}", 114, (0, 220, 255))
-    put(f"gafas:{glasses}  gorra:{headwear}   (G/H cambia)", 142, (200, 200, 255), 0.5)
+        put("sin cara — acercate / mas luz", 12, 54, (80, 80, 255), 0.55)
+    if auto:
+        col = (0, 220, 80) if label == 1 else (80, 80, 255)
+        put(f"* GRABANDO: {'MIRA' if label == 1 else 'NO MIRA'}", 12, 80, col, 0.62)
+    else:
+        put("en pausa — pulsa T para grabar seguido", 12, 80, (200, 200, 200), 0.55)
+    put(f"gafas: {glasses}    gorra: {headwear}        mira: {writer.counts[1]}   no mira: {writer.counts[0]}",
+        12, 106, (210, 210, 255), 0.52)
+
+    # ── bottom controls bar (auto-shrink so it always fits the frame width) ──
+    band(h - 34, h, 0.55)
+    legend = "L=mira   A=no mira   T=grabar   M=cambia   G=gafas   H=gorra   Q=guardar y salir"
+    fs = 0.5
+    while fs > 0.32 and cv2.getTextSize(legend, cv2.FONT_HERSHEY_SIMPLEX, fs, 1)[0][0] > w - 24:
+        fs -= 0.02
+    put(legend, 12, h - 12, (255, 255, 255), fs, 1)
 
 
 def main() -> int:
