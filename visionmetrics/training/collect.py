@@ -28,9 +28,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as dt
 from pathlib import Path
 
-CSV_HEADER = ["yaw", "pitch", "distance", "label"]
+# One row per captured sample. Features the model trains on (yaw, pitch, distance)
+# + the label + provenance/condition metadata (constant per session) used to track
+# coverage and evaluate accuracy per condition. See training/dataset.py.
+SESSION_COLUMNS = [
+    "yaw", "pitch", "distance", "label", "distance_tier",
+    "glasses", "headwear", "subject", "collector", "session", "captured_at",
+]
 
 
 def tier_for(face_width: float) -> str:
@@ -45,16 +52,25 @@ def tier_for(face_width: float) -> str:
 
 
 class SampleWriter:
-    """Buffers labelled samples and appends them to a CSV (header if new)."""
+    """Buffers labelled samples and appends them to a CSV (header if new).
 
-    def __init__(self, path: str):
+    glasses/headwear are recorded PER ROW (they can be toggled mid-session as
+    different people walk up), so one session file can hold several people and
+    conditions. ``meta`` holds only the run-constant fields (subject/collector/
+    session/captured_at).
+    """
+
+    def __init__(self, path: str, *, meta: dict | None = None):
         self.path = Path(path)
+        self.meta = dict(meta or {})
         self.rows: list[tuple] = []
         self.counts = {1: 0, 0: 0}
         self.tier_counts: dict[str, dict[int, int]] = {}
 
-    def add(self, yaw: float, pitch: float, distance: float, label: int, tier: str) -> None:
-        self.rows.append((round(yaw, 5), round(pitch, 5), round(distance, 5), int(label)))
+    def add(self, yaw: float, pitch: float, distance: float, label: int, tier: str,
+            glasses: str = "unknown", headwear: str = "unknown") -> None:
+        self.rows.append((round(yaw, 5), round(pitch, 5), round(distance, 5),
+                          int(label), tier, glasses, headwear))
         self.counts[label] += 1
         self.tier_counts.setdefault(tier, {1: 0, 0: 0})[label] += 1
 
@@ -64,11 +80,15 @@ class SampleWriter:
             return 0
         new = not self.path.exists()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        m = self.meta
+        tail = [m.get("subject", "unknown"), m.get("collector", "unknown"),
+                m.get("session", ""), m.get("captured_at", "")]
         with open(self.path, "a", newline="") as f:
             w = csv.writer(f)
             if new:
-                w.writerow(CSV_HEADER)
-            w.writerows(self.rows)
+                w.writerow(SESSION_COLUMNS)
+            for yaw, pitch, distance, label, tier, glasses, headwear in self.rows:
+                w.writerow([yaw, pitch, distance, label, tier, glasses, headwear, *tail])
         return len(self.rows)
 
 
@@ -79,8 +99,9 @@ def _largest_box(detections):
     return d.bbox
 
 
-def run(camera, output, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
-        config_path=None) -> int:
+def run(camera, output=None, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
+        config_path=None, glasses="unknown", headwear="unknown",
+        subject="unknown", collector="unknown") -> int:
     # Heavy deps imported lazily so the pure helpers above stay cheap to import/test.
     import cv2
 
@@ -108,12 +129,33 @@ def run(camera, output, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
         print(f"ERROR: cannot open camera {camera!r}")
         return 1
 
-    writer = SampleWriter(output)
+    # One file per RUN (a "session"). Record as many people as you like in one run;
+    # toggle glasses/headwear with G/H as different people walk up. Default to a
+    # timestamped file so sessions never collide and each is easy to send.
+    captured_at = dt.datetime.now(dt.timezone.utc).isoformat()
+    if not output:
+        stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        safe = "".join(c for c in collector if c.isalnum()).lower() or "session"
+        output = f"data/raw_sessions/{stamp}_{safe}.csv"
+    session_id = Path(output).stem
+    meta = {"subject": subject, "collector": collector,
+            "session": session_id, "captured_at": captured_at}
+
+    glasses_cycle = ["no", "yes", "unknown"]
+    headwear_cycle = ["none", "cap", "hat", "hood", "unknown"]
+    if glasses not in glasses_cycle:
+        glasses = "unknown"
+    if headwear not in headwear_cycle:
+        headwear = "unknown"
+
+    writer = SampleWriter(output, meta=meta)
     auto = False
     label = 1
     focal_px = None
     frame_idx = 0
-    print("[collect] L=look  A=away  T=toggle auto  M=switch label  Q=quit+save")
+    print(f"[collect] session={session_id}  collector={collector}")
+    print("[collect] L=look  A=away  T=toggle auto  M=switch label  "
+          "G=gafas  H=gorra  Q=quit+save")
 
     try:
         while True:
@@ -132,9 +174,9 @@ def run(camera, output, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
                 tier = tier_for(pose.distance)
                 cv2.circle(frame, pose.nose_px, 5, (0, 255, 0), -1)
                 if auto and frame_idx % max(1, every) == 0:
-                    writer.add(pose.yaw, pose.pitch, pose.distance, label, tier)
+                    writer.add(pose.yaw, pose.pitch, pose.distance, label, tier, glasses, headwear)
 
-            _draw_hud(cv2, frame, pose, tier, auto, label, writer)
+            _draw_hud(cv2, frame, pose, tier, auto, label, writer, glasses, headwear)
             cv2.imshow("VisionMetrics — data collector", frame)
             k = cv2.waitKey(1) & 0xFF
             if k == ord("q"):
@@ -143,23 +185,30 @@ def run(camera, output, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
                 auto = not auto
             elif k == ord("m"):
                 label = 0 if label == 1 else 1
+            elif k == ord("g"):
+                glasses = glasses_cycle[(glasses_cycle.index(glasses) + 1) % len(glasses_cycle)]
+            elif k == ord("h"):
+                headwear = headwear_cycle[(headwear_cycle.index(headwear) + 1) % len(headwear_cycle)]
             elif k == ord("l") and pose is not None:
-                writer.add(pose.yaw, pose.pitch, pose.distance, 1, tier)
+                writer.add(pose.yaw, pose.pitch, pose.distance, 1, tier, glasses, headwear)
             elif k == ord("a") and pose is not None:
-                writer.add(pose.yaw, pose.pitch, pose.distance, 0, tier)
+                writer.add(pose.yaw, pose.pitch, pose.distance, 0, tier, glasses, headwear)
     finally:
         cap.release()
         cv2.destroyAllWindows()
 
     n = writer.save()
-    print(f"[collect] saved {n} samples to {output} "
-          f"(look={writer.counts[1]} away={writer.counts[0]})")
+    print(f"[collect] saved {n} samples (look={writer.counts[1]} away={writer.counts[0]})")
     for t, c in writer.tier_counts.items():
         print(f"          {t}: look={c[1]} away={c[0]}")
+    if n:
+        full = Path(output).resolve()
+        print("\n[collect] DONE. Send this ONE file to Alvaro (WhatsApp / email):")
+        print(f"          {full}")
     return 0
 
 
-def _draw_hud(cv2, frame, pose, tier, auto, label, writer):
+def _draw_hud(cv2, frame, pose, tier, auto, label, writer, glasses="unknown", headwear="unknown"):
     put = lambda txt, y, col=(255, 255, 255), s=0.6: cv2.putText(
         frame, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, s, col, 2)
     if pose is not None:
@@ -170,12 +219,18 @@ def _draw_hud(cv2, frame, pose, tier, auto, label, writer):
     mode = f"AUTO: {'look' if label == 1 else 'away'}" if auto else "manual"
     put(mode, 86, (0, 220, 100) if auto else (180, 180, 180))
     put(f"look {writer.counts[1]}  away {writer.counts[0]}", 114, (0, 220, 255))
+    put(f"gafas:{glasses}  gorra:{headwear}   (G/H cambia)", 142, (200, 200, 255), 0.5)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="VisionMetrics training-data collector")
     ap.add_argument("--camera", default="0", help="camera index or path/RTSP url")
-    ap.add_argument("--output", default="data/engagement_data.csv")
+    ap.add_argument("--output", default=None,
+                    help="CSV to write (default: data/raw_sessions/<timestamp>_<collector>.csv)")
+    ap.add_argument("--collector", default="unknown", help="who is running the capture (e.g. hector)")
+    ap.add_argument("--subject", default=None, help="who is in front of the camera (defaults to --collector)")
+    ap.add_argument("--glasses", choices=["yes", "no", "unknown"], default="unknown")
+    ap.add_argument("--headwear", choices=["none", "cap", "hat", "hood", "unknown"], default="unknown")
     ap.add_argument("--fov", type=float, default=70.0, help="camera horizontal FOV (deg)")
     ap.add_argument("--every", type=int, default=2, help="auto-capture every Nth frame")
     ap.add_argument("--conf", type=float, default=0.25, help="YOLO person confidence floor")
@@ -183,7 +238,9 @@ def main() -> int:
     ap.add_argument("--config", default=None, help="optional device.yaml for model paths")
     a = ap.parse_args()
     return run(a.camera, a.output, fov_h_deg=a.fov, every=a.every, conf=a.conf,
-               aspect=a.aspect, config_path=a.config)
+               aspect=a.aspect, config_path=a.config,
+               glasses=a.glasses, headwear=a.headwear,
+               subject=a.subject or a.collector, collector=a.collector)
 
 
 if __name__ == "__main__":

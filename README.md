@@ -53,9 +53,8 @@ VisionMetrics measures how people interact with physical advertisements (store w
 │   │   ├── main.py              # Full 7-layer live inference pipeline
 │   │   └── detect.py            # Standalone YOLO detection helper
 │   ├── training/
-│   │   ├── data_collector.py    # Live data labelling tool
-│   │   ├── train.py             # PyTorch MLP trainer (produces engagement_model.pth)
-│   │   └── train_report.py      # Evaluation script — reproduces all metrics & figures
+│   │   └── train_report.py      # Academic-report figures (loss curves, ROC, confusion matrix)
+│   │                            # collector + trainer now live in visionmetrics/training/
 │   └── utils/
 │       ├── calibrate.py         # Per-store calibration wizard
 │       └── check_cameras.py     # Lists available camera indices
@@ -154,18 +153,26 @@ python src/utils/calibrate.py
 ```
 Follow the on-screen prompts to define the engagement zone boundaries.
 
-### Training
+### Training (collect → merge → retrain)
+The collector + trainer live in `visionmetrics/training/` (built on the production
+pipeline, so no train/serve skew). Full workflow — including how a non-technical
+collector sends data back — in [`visionmetrics/training/README.md`](visionmetrics/training/README.md).
 ```bash
-# Collect labelled data
-python src/training/data_collector.py
+# Collect labelled data (on the camera). G/H tag glasses/cap; L/A label looking/away.
+python -m visionmetrics.training.collect --collector hector
 
-# Train the PyTorch model
-python src/training/train.py
+# Merge all collected sessions into the master dataset + coverage report
+python -m visionmetrics.training.build_dataset
+
+# Retrain the PyTorch model (per-condition accuracy report)
+python -m visionmetrics.training.train
 ```
+> The old `src/training/data_collector.py` + `train.py` were removed (superseded by
+> the above; the old collector duplicated feature logic and risked train/serve skew).
 
 ### Reproduce Results (Evaluation Metrics & Figures)
 ```bash
-python src/training/train_report.py
+python src/training/train_report.py   # academic-report figures (loss curves, ROC, confusion matrix)
 ```
 Generates under `figures/` (created automatically): training/validation loss curves, confusion matrix, ROC curve, per-distance accuracy bar chart, `metrics.json`, and `classification_report.txt`.
 

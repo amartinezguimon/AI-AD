@@ -156,12 +156,41 @@ client sees their stores. Pilot in real stores by August.
   tokens are rejected from `/v1/admin`. 24 cloud tests. UI is Phase 4.
 - ☐ One real test store sending live data to the VM (needs Docker on the VM).
 
-## Phase 4 — Minimal SaaS dashboard (Weeks 6–8)
-- ☐ Web app: login, store selector, date range
-- ☐ Live + historical views (day/week), business language (no yaw/pitch jargon)
-- ☐ Fleet health panel (devices online, FPS, last metric)
+## Phase 4 — SaaS dashboard (Weeks 6–8)
+- ☑ Web app (`cloud/web/`): React + Vite + TypeScript + Tailwind, Chart.js — a
+  faithful build of the agreed design, wired to the real API. Login (JWT), auto
+  store selector when >1 store, "En directo" pill from fleet status.
+- ☑ Backend data contract: `GET /v1/dashboard?store_id&year&month` →
+  `{daily, dailyPrev, hourly, store, has_data}`, aggregated in the store's
+  timezone; empty-store state handled. Demo seeding (`scripts/seed_demo.py`).
+- ☑ Home (hourly + monthly + calendar) and Analysis (compare periods, weekday
+  comparison) views in plain business language (no yaw/pitch jargon).
+- ☐ Fleet health panel (devices online, FPS, last metric) — surfaced as the
+  "En directo" pill for now; full panel still to build.
+- ☐ **Dwell-time histogram** so the Analysis "Mín. Xs" slider is exact, not an
+  estimate: the edge should emit per-bucket counts of lookers by dwell band
+  (e.g. 2–5s / 5–10s / 10s+) instead of only a total. Needs edge + schema +
+  ingest changes. Until then the slider's `+2s` baseline is real; above that is
+  an approximation (flagged in the UI and `cloud/web/README.md`).
+- ☑ Staff back-office (monitoring) UI at `/staff`: platform summary cards
+  (clients/stores/devices, online/offline/never), and a fleet table for every
+  camera across all clients — status, camera health (FPS, camera_ok) and a
+  data-flow signal (last metric + passersby/24h). Endpoints `/v1/admin/me`,
+  `/overview`, enriched `/fleet`.
+- ☐ Remote per-store config editing: a server→edge config channel (server stores
+  the config, the edge box pulls it and reconfigures) + a simple form UI in the
+  staff panel (camera position, window width, engagement-zone, thresholds), so a
+  store can be tuned without a site visit. Touches edge agent + schema + ingest.
 
 ## Phase 5 — Harden + validate 2nd store (Weeks 8–10)
+- ☑ **Counting zone (field feedback from Hector's live test):** an operator-drawn
+  polygon (`counting_region` in the store config) bounds where people count at all
+  — feet must fall inside it, for foot traffic AND engagement. Fixes "people too
+  far to notice the window get counted" and far/shadow false-engagement, at the
+  source. Drawn with `python -m visionmetrics.edge.tools.draw_zone`. Paired with an
+  anti-flicker knob `min_engage_window_s` (discard sub-0.4s looking windows so
+  micro-glances/shadows don't accumulate). `CountingRegion` in `zone.py`, gated in
+  `pipeline.py`, loaded in `build.py`; 88 edge tests.
 - ☐ Install in a 2nd real store (different camera/lighting) — *model generalization truth surfaces here*
 - ☐ Tune FOV/thresholds per camera via `device.yaml`
 - ☐ Polish service start, camera reconnection, crash recovery
@@ -205,6 +234,18 @@ beside it" assumption. Honest assessment of what it takes:
   aggregate metric tolerates per-instant imperfection, per-person perfection does
   not come free.
 
+**☑ Tooling for steps 2–3 is BUILT (`visionmetrics/training/`, 2026-06-17):**
+collector now tags each session with condition metadata (glasses/headwear/subject/
+distance tier) and writes one CSV per session to `data/raw_sessions/`;
+`build_dataset.py` merges them into `data/engagement_dataset.csv` and prints a
+**coverage report** (looking/away per tier + condition, flags thin cells);
+`train.py` reuses the agent's `EngagementNet`, splits-before-augment, and reports
+accuracy **per distance tier + per condition** → `models/engagement_metrics.json`.
+Workflow (Hector collects → commits sessions → you merge+retrain) in
+`visionmetrics/training/README.md`. Baseline on the legacy 1127 rows: 98.7% on the
+in-distribution test split — but the coverage report already shows the gaps the new
+collection must fill (far tier ≈ 0 looking; glasses/headwear all "unknown").
+
 Priority order (do NOT jump to the bottom):
 1. **Deployment geometry + per-store calibration (the zone).** Biggest real-world
    accuracy gain, ~free. Re-centre on the window + calibrate window edges (see
@@ -212,10 +253,12 @@ Priority order (do NOT jump to the bottom):
 2. **Build a real labeled EVAL set + metric FIRST.** ~200–300 held-out examples
    from realistic conditions the model never trains on, scored with precision/
    recall on "looking". *Step 0 of any accuracy work — you can't improve what you
-   don't measure; without it every "improvement" is guesswork.*
+   don't measure; without it every "improvement" is guesswork.* (Tooling ready —
+   keep an independent session out of `raw_sessions/` and score with `train --data`.)
 3. **More + diverse + real data** (consenting people; later real-store footage).
    Diversity (glasses, hats, ages, heights, distances 1–5 m, lighting) > volume.
    Current set = 1127 self-collected lab samples — too small/narrow to generalize.
+   (Collector + coverage report now make this systematic.)
 4. **Highest-ROI model upgrade: add eye gaze (MediaPipe Iris).** Reuses the stack;
    the single biggest model-side accuracy jump. Do it only after 1–3 exist.
 5. **Learned 6DoF head pose** (e.g. 6DRepNet) to replace the jittery 3-number

@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import csv
 
-from visionmetrics.training.collect import CSV_HEADER, SampleWriter, tier_for
+from visionmetrics.training.collect import SESSION_COLUMNS, SampleWriter, tier_for
+
+META = {"subject": "hector", "collector": "hector", "session": "s1", "captured_at": "t"}
 
 
 def test_tier_buckets():
@@ -18,26 +20,27 @@ def test_tier_buckets():
     assert tier_for(0.01) == "v-far >3.5m"
 
 
-def test_writer_creates_file_with_header(tmp_path):
+def test_writer_creates_file_with_rich_header(tmp_path):
     path = tmp_path / "samples.csv"
-    w = SampleWriter(str(path))
-    w.add(0.1, -0.2, 0.18, 1, "near <0.5m")
-    w.add(0.0, 0.0, 0.05, 0, "far 1.5-3.5m")
+    w = SampleWriter(str(path), meta=META)
+    w.add(0.1, -0.2, 0.18, 1, "near <0.5m", "yes", "cap")   # glasses/headwear per row
+    w.add(0.0, 0.0, 0.05, 0, "far 1.5-3.5m", "no", "none")
     assert w.save() == 2
 
     rows = list(csv.reader(path.open()))
-    assert rows[0] == CSV_HEADER
-    assert rows[1] == ["0.1", "-0.2", "0.18", "1"]
+    assert rows[0] == SESSION_COLUMNS
+    assert rows[1] == ["0.1", "-0.2", "0.18", "1", "near <0.5m",
+                       "yes", "cap", "hector", "hector", "s1", "t"]
     assert len(rows) == 3                      # header + 2
 
 
 def test_writer_appends_without_duplicating_header(tmp_path):
     path = tmp_path / "samples.csv"
-    w1 = SampleWriter(str(path)); w1.add(0.1, 0.1, 0.2, 1, "near <0.5m"); w1.save()
-    w2 = SampleWriter(str(path)); w2.add(0.2, 0.2, 0.1, 0, "mid 0.5-1.5m"); w2.save()
+    w1 = SampleWriter(str(path), meta=META); w1.add(0.1, 0.1, 0.2, 1, "near <0.5m"); w1.save()
+    w2 = SampleWriter(str(path), meta=META); w2.add(0.2, 0.2, 0.1, 0, "mid 0.5-1.5m"); w2.save()
 
     rows = list(csv.reader(path.open()))
-    assert rows.count(CSV_HEADER) == 1         # header written once
+    assert rows.count(SESSION_COLUMNS) == 1    # header written once
     assert len(rows) == 3                       # header + 2 data rows
 
 

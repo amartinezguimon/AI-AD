@@ -1,0 +1,9 @@
+# Agent RUNTIME artifacts live here too — never part of the training dataset.
+*.sqlite
+uplink_buffer.sqlite
+hourly_log.json
+live_stats.json
+session_history.json
+
+# Training data IS tracked: engagement_data.csv (legacy), engagement_dataset.csv
+# (master, built), and everything under raw_sessions/ (collected sessions).
