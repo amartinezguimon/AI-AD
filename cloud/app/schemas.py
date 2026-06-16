@@ -92,6 +92,36 @@ class BucketOut(BaseModel):
     total_attention_s: float
 
 
+# ── dashboard payload (the exact shape the frontend renders) ──────
+class DayStat(BaseModel):
+    """One day's summary, in plain business terms."""
+    total: int        # passersby (foot traffic)
+    looking: int      # engaged (looked > threshold)
+    rate: int         # looking / total * 100, rounded to a whole %
+    avg: float        # mean seconds an engaged person looked (attention / looking)
+
+
+class HourBreakdown(BaseModel):
+    """Per-hour counts for one day, indices 0..11 == 9h..20h."""
+    passing: list[int]
+    looking: list[int]
+
+
+class DashboardOut(BaseModel):
+    """Everything the dashboard needs for one month, scoped to one store.
+
+    Keys of `daily`/`dailyPrev`/`hourly` are day-of-month as strings (JSON has no
+    int keys); the frontend reads them with numeric indexing, which coerces.
+    """
+    store: StoreOut
+    year: int
+    month: int                       # 1..12
+    has_data: bool                   # False for a brand-new store with no buckets yet
+    daily: dict[str, DayStat]
+    dailyPrev: dict[str, DayStat]
+    hourly: dict[str, HourBreakdown]
+
+
 class UserCreateIn(BaseModel):
     email: str
     password: str = Field(min_length=6)
@@ -147,3 +177,25 @@ class AdminDeviceOut(BaseModel):
     status: str
     agent_version: str | None = None
     last_seen_at: str | None = None
+    # Health from the latest heartbeat (None if the device never reported one).
+    camera_ok: bool | None = None
+    fps_analysis: float | None = None
+    people_tracked: int | None = None
+    # Data-flow signals — is the box actually producing metrics?
+    last_metric_at: str | None = None   # newest bucket window_start (ISO), or None
+    recent_passersby: int | None = None  # passersby in the last 24h
+
+
+class StaffMeOut(BaseModel):
+    id: str
+    email: str
+
+
+class AdminOverviewOut(BaseModel):
+    """Platform-wide counts for the staff panel's summary cards."""
+    orgs: int
+    stores: int
+    devices: int
+    online: int
+    offline: int
+    never_seen: int

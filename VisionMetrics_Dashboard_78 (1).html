@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VisionMetrics — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:     #F1EEE8;
+  --card:   #FFFFFF;
+  --dark:   #1C1C1C;
+  --purple: #3d1a6e;
+  --slate:  #5e6e83;
+  --cream:  #fff7cd;
+  --yellow: #F0DC6A;
+  --gray2:  #666;
+  --gray3:  #999;
+  --gray4:  #C8C8C8;
+  --gray5:  #EBEBEB;
+  --gray6:  #F5F5F5;
+  --radius: 18px;
+  --font:   'Inter', system-ui, sans-serif;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:var(--font); background:var(--bg); color:var(--dark); padding:24px 32px 40px; min-height:100vh; }
+
+/* NAV */
+.topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.logo { font-size:15px; font-weight:700; background:var(--purple); color:#fff; padding:8px 20px; border-radius:30px; }
+.nav { display:flex; gap:3px; background:var(--card); border-radius:30px; padding:4px; }
+.nav-item { padding:7px 18px; border-radius:24px; font-size:13px; color:var(--gray2); cursor:pointer; }
+.nav-item.active { background:var(--purple); color:#fff; font-weight:500; }
+.live-pill { display:flex; align-items:center; gap:7px; background:var(--card); color:var(--gray2); padding:7px 16px; border-radius:30px; font-size:13px; }
+.live-dot { width:7px; height:7px; border-radius:50%; background:#22C55E; animation:blink 2s infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.avatar { width:34px; height:34px; border-radius:50%; background:var(--purple); color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+
+/* CARDS */
+.card { background:var(--card); border-radius:var(--radius); padding:22px; }
+.card-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--slate); margin-bottom:5px; }
+
+/* LEGEND */
+.leg { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--gray3); }
+.leg-dot { width:10px; height:10px; border-radius:3px; }
+
+/* NAV BUTTONS */
+.cal-nav { width:26px; height:26px; border-radius:50%; background:var(--gray6); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; color:var(--gray2); }
+
+/* SEG BUTTONS */
+.seg-btn { padding:7px 16px; border-radius:24px; font-size:12.5px; color:var(--gray2); cursor:pointer; white-space:nowrap; }
+.seg-btn.active { background:var(--purple); color:#fff; font-weight:500; }
+.wd-btn { flex:1; text-align:center; padding:6px 0; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; background:var(--gray6); color:var(--gray3); transition:all .15s; }
+.wd-btn.active { background:var(--purple); color:#fff; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* MONTHLY CHART */
+.monthly-card { background:var(--card); border-radius:var(--radius); padding:22px; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div id="loadingOverlay" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+      <div style="width:32px;height:32px;border:3px solid var(--gray5);border-top-color:var(--purple);border-radius:50%;animation:spin .8s linear infinite;"></div>
+      <div style="font-size:13px;color:var(--gray3);font-weight:600;">Cargando datos…</div>
+    </div>
+  </div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">VisionMetrics</div>
+  <nav class="nav">
+    <div class="nav-item active" id="nav-home" onclick="showPage('home')">Home</div>
+    <div class="nav-item" id="nav-analysis" onclick="showPage('analysis')">Analysis</div>
+  </nav>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="live-pill"><div class="live-dot"></div>En directo</div>
+    <div class="avatar">JM</div>
+  </div>
+</div>
+
+<!-- ═══════ HOME ═══════ -->
+<div id="page-home">
+
+  <div style="font-size:20px;font-weight:600;color:var(--dark);margin-bottom:18px;">
+    Bienvenido, <span style="color:var(--gray4);">Joyería Martínez</span>
+  </div>
+
+  <!-- TOP: 6/8 chart + 2/8 right panel -->
+  <div style="display:grid;grid-template-columns:6fr 2fr;gap:14px;margin-bottom:14px;">
+
+    <!-- HERO CHART -->
+    <div class="card" style="display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;flex-shrink:0;">
+        <div>
+          <div class="card-label" id="heroLabel">Actividad de hoy</div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-.3px;">Personas por hora</div>
+        </div>
+        <div style="display:flex;gap:16px;">
+          <div class="leg"><div class="leg-dot" style="background:#D8D8D8;"></div>Pasaron</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--purple);"></div>Miraron +2s</div>
+        </div>
+      </div>
+      <div style="position:relative;flex:1;min-height:260px;">
+        <canvas id="chartHero"></canvas>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: calendar + stats -->
+    <div class="card" style="display:flex;flex-direction:column;gap:0;overflow:hidden;">
+
+      <!-- Mini calendar -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:600;color:var(--dark);" id="calTitle">Junio 2026</div>
+          <div style="display:flex;gap:5px;">
+            <div class="cal-nav" onclick="calNav(-1)">‹</div>
+            <div class="cal-nav" onclick="calNav(1)">›</div>
+          </div>
+        </div>
+        <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
+      </div>
+
+      <div style="height:1px;background:var(--gray5);margin-bottom:14px;"></div>
+
+      <!-- Stats -->
+      <div style="text-align:center;margin-bottom:14px;">
+        <div style="font-size:9.5px;color:var(--gray3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;">Personas pasando</div>
+        <div style="font-size:44px;font-weight:800;letter-spacing:-2.5px;color:var(--dark);line-height:1;" id="cmpTotal">184</div>
+        <div style="font-size:10px;color:var(--gray3);margin-top:4px;">media mensual: <span style="font-weight:700;" id="cmpAvgTotal">183</span></div>
+      </div>
+
+      <div style="height:1px;background:var(--gray5);margin-bottom:14px;"></div>
+
+      <div style="text-align:center;">
+        <div style="font-size:9.5px;color:var(--gray3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;">Tasa de atención</div>
+        <div style="font-size:44px;font-weight:800;letter-spacing:-2.5px;color:var(--purple);line-height:1;" id="pieCenter">28%</div>
+        <div style="font-size:10px;color:var(--gray3);margin-top:4px;">media mensual: <span style="font-weight:700;" id="cmpAvgRate">27%</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- BOTTOM: monthly chart full width -->
+  <div class="monthly-card" id="monthlyCard" style="margin-top:0;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">
+      <div>
+        <div class="card-label">Resumen mensual</div>
+        <div style="font-size:16px;font-weight:700;">Junio 2026 — cada día</div>
+      </div>
+      <div style="display:flex;gap:18px;">
+        <div class="leg"><div style="width:22px;height:2px;background:var(--dark);border-radius:2px;"></div><span style="font-size:11px;">Media pasando</span></div>
+        <div class="leg"><div style="width:22px;height:2px;background:var(--yellow);border-radius:2px;"></div><span style="font-size:11px;">Media mirando</span></div>
+      </div>
+    </div>
+    <div style="position:relative;height:220px;margin-top:10px;">
+      <canvas id="chartMonthly"></canvas>
+    </div>
+  </div>
+
+</div><!-- end page-home -->
+
+<!-- ═══════ ANALYSIS ═══════ -->
+<div id="page-analysis" style="display:none;flex-direction:column;">
+
+  <div style="font-size:18px;font-weight:600;color:var(--dark);margin-bottom:4px;">Análisis</div>
+  <div style="font-size:11px;color:var(--gray3);margin-bottom:14px;">Selecciona un rango en el calendario · activa comparación para ver dos períodos</div>
+
+  <!-- MAIN GRID -->
+  <div style="display:grid;grid-template-columns:65fr 35fr;gap:14px;flex:1;min-height:0;align-items:stretch;">
+
+    <!-- LEFT: line chart -->
+    <div class="card" style="padding:24px;display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
+
+      <!-- Chart header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0;">
+        <div id="chartLegendRow" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:7px;">
+            <div style="width:20px;height:3px;background:var(--purple);border-radius:3px;"></div>
+            <span style="font-size:12px;color:var(--dark);font-weight:600;" id="titleA">—</span>
+          </div>
+          <div id="legendB" style="display:none;align-items:center;gap:7px;">
+            <div style="width:20px;height:3px;background:#E8394A;border-radius:3px;"></div>
+            <span style="font-size:12px;color:#E8394A;font-weight:600;" id="titleB">—</span>
+          </div>
+        </div>
+        <!-- Looking controls -->
+        <div id="lookModeControls" style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;gap:2px;background:var(--gray6);border-radius:20px;padding:3px;">
+            <div id="lmOff"  onclick="setLookMode('off')"  style="padding:4px 10px;border-radius:16px;font-size:11px;cursor:pointer;background:var(--purple);color:#fff;font-weight:500;">Pasando</div>
+            <div id="lmAdd"  onclick="setLookMode('add')"  style="padding:4px 10px;border-radius:16px;font-size:11px;cursor:pointer;color:var(--gray3);">+ Mirando</div>
+            <div id="lmSolo" onclick="setLookMode('solo')" style="padding:4px 10px;border-radius:16px;font-size:11px;cursor:pointer;color:var(--gray3);">Solo mirando</div>
+          </div>
+          <!-- Slider filter (shown when mirando active) -->
+          <div id="secsWrap" style="display:none;align-items:center;gap:6px;">
+            <span style="font-size:10.5px;color:var(--gray3);">Mín.<span id="secsLabel">2</span>s</span>
+            <input type="range" id="secsRange" min="1" max="15" value="2"
+              oninput="secsFilter=+this.value;document.getElementById('secsLabel').textContent=this.value;applyRangesToChart();"
+              style="width:70px;accent-color:var(--purple);cursor:pointer;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div style="flex:1;position:relative;min-height:0;">
+        <canvas id="chartLine"></canvas>
+      </div>
+    </div>
+
+    <!-- RIGHT: calendar + stat cards -->
+    <div style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;overflow:hidden;">
+
+      <!-- Calendar -->
+      <div class="card" style="padding:16px 18px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:600;color:var(--dark);" id="anCalTitle">Junio 2026</div>
+          <div style="display:flex;gap:5px;">
+            <div class="cal-nav" onclick="anCalNav(-1)">‹</div>
+            <div class="cal-nav" onclick="anCalNav(1)">›</div>
+          </div>
+        </div>
+        <div id="anCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px;"></div>
+        <div id="anCalHint" style="font-size:10px;color:var(--purple);font-weight:600;text-align:center;min-height:16px;"></div>
+      </div>
+
+      <!-- Compare card -->
+      <div class="card" style="padding:14px 16px;flex-shrink:0;">
+        <!-- Toggle row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:11.5px;font-weight:600;color:var(--dark);">Comparar períodos</span>
+          <div onclick="toggleCompareMode()" style="cursor:pointer;">
+            <div id="cmpBtn" style="width:34px;height:18px;border-radius:9px;background:var(--gray5);position:relative;transition:background .2s;">
+              <div id="cmpKnob" style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shortcut presets -->
+        <div style="margin-top:10px;">
+          <select id="shortcutSelect" onchange="applyShortcut(this.value)" style="width:100%;padding:7px 10px;border:1.5px solid var(--gray5);border-radius:8px;font-size:11.5px;font-family:inherit;background:var(--card);color:var(--dark);cursor:pointer;outline:none;">
+            <option value="">Atajos rápidos…</option>
+            <option value="week">Esta semana vs anterior</option>
+            <option value="month">Este mes vs anterior</option>
+            <option value="weekday">Comparar días de la semana</option>
+          </select>
+        </div>
+
+        <!-- Weekday picker (shown only for "Comparar días de la semana") -->
+        <div id="weekdayPicker" style="display:none;margin-top:8px;">
+          <div style="font-size:10px;color:var(--gray3);margin-bottom:6px;text-align:center;">¿Qué día de la semana quieres comparar?</div>
+          <div style="display:flex;gap:3px;">
+            <div class="wd-btn" data-wd="0" onclick="selectWeekday(0)">L</div>
+            <div class="wd-btn" data-wd="1" onclick="selectWeekday(1)">M</div>
+            <div class="wd-btn" data-wd="2" onclick="selectWeekday(2)">X</div>
+            <div class="wd-btn" data-wd="3" onclick="selectWeekday(3)">J</div>
+            <div class="wd-btn" data-wd="4" onclick="selectWeekday(4)">V</div>
+            <div class="wd-btn" data-wd="5" onclick="selectWeekday(5)">S</div>
+            <div class="wd-btn" data-wd="6" onclick="selectWeekday(6)">D</div>
+          </div>
+        </div>
+
+        <!-- Step UI (hidden until compare on) -->
+        <div id="compareSteps" style="display:none;margin-top:12px;">
+
+          <!-- Step message -->
+          <div id="stepMsg" style="font-size:11px;color:var(--gray2);margin-bottom:10px;text-align:center;line-height:1.4;"></div>
+
+          <!-- Period indicators -->
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <div id="periodATag" style="flex:1;padding:6px;border-radius:8px;border:1.5px solid var(--purple);text-align:center;font-size:10.5px;font-weight:600;color:var(--purple);">
+              <div style="font-size:9px;color:var(--gray3);margin-bottom:1px;">Período A</div>
+              <div id="periodALabel">—</div>
+            </div>
+            <div id="periodBTag" style="flex:1;padding:6px;border-radius:8px;border:1.5px solid var(--gray5);text-align:center;font-size:10.5px;font-weight:600;color:var(--gray4);">
+              <div style="font-size:9px;color:var(--gray3);margin-bottom:1px;">Período B</div>
+              <div id="periodBLabel">—</div>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div>
+            <button id="btnNext" onclick="compareNext()" style="display:none;width:100%;padding:8px;border:none;border-radius:8px;background:var(--purple);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:4px;">Siguiente →</button>
+            <button id="btnConfirm" onclick="compareConfirm()" style="display:none;width:100%;padding:8px;border:none;border-radius:8px;background:#22863A;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:4px;">Confirmar ✓</button>
+            <button id="btnReset" onclick="compareReset()" style="display:none;width:100%;padding:6px;border:1.5px solid var(--gray5);border-radius:8px;background:transparent;color:var(--gray3);font-size:11px;cursor:pointer;font-family:inherit;">↺ Reiniciar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat card A -->
+      <div class="card" id="statCardA" style="padding:20px;border-left:4px solid var(--purple);flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;overflow:hidden;">
+        <div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--slate);margin-bottom:8px;" id="statLabelA">Período A</div>
+        <div id="statsViewA" style="display:flex;align-items:center;flex:1;min-height:0;"></div>
+      </div>
+
+      <!-- Stat card B (hidden until compare is on) -->
+      <div class="card" id="statCardB" style="padding:20px;border-left:4px solid #E8394A;flex:1;min-height:0;display:none;flex-direction:column;justify-content:space-evenly;overflow:hidden;">
+        <div style="font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#E8394A;margin-bottom:8px;" id="statLabelB">Período B</div>
+        <div id="statsViewB" style="display:flex;align-items:center;flex:1;min-height:0;"></div>
+      </div>
+
+    </div>
+  </div>
+</div><!-- end page-analysis -->
+
+<script>
+// ══════════════════════════════
+// DATA
+// ══════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// DATA LAYER
+// ──────────────────────────────────────────────────────────────
+// RAW_CAL_DATA represents the "database" for June 2026 — this is
+// exactly the shape a backend endpoint should return for one month
+// of daily summaries: { [dayOfMonth]: {total, looking, rate, avg} }
+// ══════════════════════════════════════════════════════════════
+const RAW_CAL_DATA = {
+  1:{total:98,  looking:22, rate:22, avg:5.1},  2:{total:211, looking:58, rate:27, avg:6.0},
+  3:{total:189, looking:52, rate:28, avg:6.2},  4:{total:143, looking:42, rate:29, avg:6.8},
+  5:{total:201, looking:47, rate:23, avg:5.4},  6:{total:189, looking:48, rate:25, avg:5.9},
+  7:{total:312, looking:94, rate:30, avg:7.2},  8:{total:178, looking:42, rate:24, avg:5.1},
+  9:{total:214, looking:61, rate:29, avg:6.4},  10:{total:184,looking:51, rate:28, avg:6.2},
+  11:{total:167,looking:44, rate:26, avg:5.8},  12:{total:88, looking:19, rate:22, avg:4.9},
+  13:{total:102,looking:24, rate:24, avg:5.3},  14:{total:298,looking:88, rate:30, avg:7.0},
+  15:{total:172,looking:43, rate:25, avg:5.7},  16:{total:195,looking:54, rate:28, avg:6.3},
+  17:{total:223,looking:67, rate:30, avg:6.9},  18:{total:156,looking:38, rate:24, avg:5.5},
+  19:{total:178,looking:46, rate:26, avg:5.8},  20:{total:301,looking:90, rate:30, avg:7.1},
+  21:{total:161,looking:40, rate:25, avg:5.6},  22:{total:76, looking:16, rate:21, avg:4.7},
+  23:{total:134,looking:33, rate:25, avg:5.5},  24:{total:187,looking:52, rate:28, avg:6.1},
+  25:{total:209,looking:60, rate:29, avg:6.5},  26:{total:112,looking:26, rate:23, avg:5.2},
+  27:{total:145,looking:38, rate:26, avg:5.7},  28:{total:288,looking:84, rate:29, avg:6.8},
+  29:{total:168,looking:45, rate:27, avg:6.0},  30:{total:194,looking:55, rate:28, avg:6.3},
+};
+
+// Populated asynchronously by initDashboard() — see DataAPI section below.
+// All rendering code reads from these `let` bindings, never from RAW_CAL_DATA directly.
+let calData     = {}; // current month   -> { day: {total,looking,rate,avg} }
+let calDataPrev = {}; // previous month  -> { day: {total,looking,rate,avg} }
+let HOURLY_DATA = {}; // current month   -> { day: {passing:[12], looking:[12]} }
+
+// ══════════════════════════════
+// HELPERS
+// ══════════════════════════════
+const set = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+
+function pass(total,look){ return total.map((t,i)=>t-look[i]); }
+
+function peakCols(look,p,dk,lt,pkDk,pkLt){
+  const tot=look.map((v,i)=>v+p[i]);
+  const mi=tot.indexOf(Math.max(...tot));
+  return {dark:tot.map((_,i)=>i===mi?pkDk:dk), light:tot.map((_,i)=>i===mi?pkLt:lt)};
+}
+
+function traffColor(t){ return t>=200?{bg:'#4CAF72',fg:'#fff'}:t>=140?{bg:'#FF8C42',fg:'#fff'}:{bg:'#E8394A',fg:'#fff'}; }
+
+// Compute a synthetic hourly breakdown for one day from its daily summary.
+// REAL BACKEND: this becomes unnecessary — the API should return hourly
+// data directly (see HOURLY_DATA / DataAPI.getDayHourly below).
+function computeHourlyForDay(day, info){
+  const base=[14,32,38,28,22,18,21,29,31,26,18,9];
+  const d = info || {total:184, rate:28};
+  const passing = base.map((v,i)=>Math.max(2,Math.round(v*(d.total/184)+((day*7+i*3)%12)-6)));
+  const looking = passing.map(v=>Math.max(0,Math.round(v*(d.rate/100))));
+  return {passing, looking};
+}
+
+// Lookups with on-the-fly fallback (covers days not present in HOURLY_DATA)
+function getDayHourly(day){
+  return (HOURLY_DATA[day] || computeHourlyForDay(day, calData[day])).passing;
+}
+function getDayLooking(day){
+  return (HOURLY_DATA[day] || computeHourlyForDay(day, calData[day])).looking;
+}
+
+let YMAX = 50; // recomputed in initHomeCharts() once real data is loaded
+
+// ══════════════════════════════
+// HOME CHARTS
+// ══════════════════════════════
+// Declared here (outer scope) so other functions — updateHome,
+// expandMonthly, animateColors, chartMonthly's onClick handler —
+// can reference them via closure. Assigned inside initHomeCharts(),
+// which runs once real data has been loaded (see initDashboard()).
+let chartHero=null, chartMonthly=null, lookingLabelPlugin=null;
+let monthDays=[], monthTot=[], monthLook=[], avgTot=0, avgLook=0;
+let purpleCols=[], traffCols=[], currentColors=[];
+
+function initHomeCharts(){
+  const iLook = getDayLooking(10);
+  const iPass = pass(getDayHourly(10), iLook);
+  const iCols = peakCols(iLook,iPass,'#3d1a6e','#D8D8D8','#1a0a3e','#c9b8e8');
+
+
+  // ── Register label plugin for hero chart ──────────────────
+  lookingLabelPlugin = {
+    id: 'lookingLabels',
+    afterDatasetsDraw(chart) {
+      if (chart.canvas.id !== 'chartHero') return;
+      const ctx  = chart.ctx;
+      const ds0  = chart.data.datasets[0]; // Miraron +2s
+      const ds1  = chart.data.datasets[1]; // Solo pasaron
+      if (!ds0 || !ds1) return;
+      const meta1 = chart.getDatasetMeta(1); // top dataset = pasando
+      ctx.save();
+      ctx.font = '700 11px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(94,110,131,0.85)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      meta1.data.forEach((bar, i) => {
+        const total = (ds0.data[i]||0) + (ds1.data[i]||0); // mirando + pasando = total
+        if (!total || total <= 0) return;
+        ctx.fillText(total, bar.x, bar.y - 4);
+      });
+      ctx.restore();
+    }
+  };
+  Chart.register(lookingLabelPlugin);
+
+  chartHero = new Chart(document.getElementById('chartHero'),{
+    type:'bar',
+    data:{
+      labels:['9h','10h','11h','12h','13h','14h','15h','16h','17h','18h','19h','20h'],
+      datasets:[
+        {label:'Miraron +2s',data:iLook,backgroundColor:iCols.dark,
+         borderRadius:{topLeft:0,topRight:0,bottomLeft:7,bottomRight:7},borderSkipped:false,stack:'s'},
+        {label:'Solo pasaron',data:iPass,backgroundColor:iCols.light,
+         borderRadius:{topLeft:7,topRight:7,bottomLeft:0,bottomRight:0},borderSkipped:false,stack:'s'}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{mode:'index',backgroundColor:'#fff',titleColor:'#1C1C1C',bodyColor:'#666',
+          borderColor:'#EBEBEB',borderWidth:1,padding:12,
+          callbacks:{afterBody:items=>{
+            const t=items.reduce((s,i)=>s+i.parsed.y,0);
+            const l=items.find(i=>i.dataset.label==='Miraron +2s');
+            return l?['Tasa: '+Math.round(l.parsed.y/t*100)+'%']:[];
+          }}
+        }
+      },
+      scales:{
+        x:{stacked:true,grid:{display:false},ticks:{font:{size:13,family:'Inter',weight:'800'},color:'#3d1a6e',maxTicksLimit:12}},
+        y:{stacked:true,min:0,max:YMAX,grid:{color:'#EBEBEB'},
+          ticks:{font:{size:12,family:'Inter',weight:'800'},color:'#3d1a6e',maxTicksLimit:6},border:{display:false}}
+      }
+    }
+  });
+
+  monthDays  = Object.keys(calData).map(Number).sort((a,b)=>a-b);
+  monthTot   = monthDays.map(d=>calData[d].total);
+  monthLook  = monthDays.map(d=>calData[d].looking);
+  avgTot     = Math.round(monthTot.reduce((a,b)=>a+b)/monthTot.length);
+  avgLook    = Math.round(monthLook.reduce((a,b)=>a+b)/monthLook.length);
+  purpleCols = monthTot.map(t=>traffColor(t).bg); // always traffic colors
+  traffCols  = purpleCols.slice();
+  currentColors = purpleCols.slice();
+
+  chartMonthly = new Chart(document.getElementById('chartMonthly'),{
+    type:'bar',
+    data:{
+      labels:monthDays.map(String),
+      datasets:[
+        {label:'Personas',data:monthTot,backgroundColor:purpleCols.slice(),borderRadius:5,borderSkipped:false,order:2},
+        {label:'Media pasando',data:Array(monthDays.length).fill(avgTot),
+         type:'line',borderColor:'#1C1C1C',borderWidth:1.5,borderDash:[4,4],pointRadius:0,fill:false,order:1},
+        {label:'Media mirando',data:Array(monthDays.length).fill(avgLook),
+         type:'line',borderColor:'#F0DC6A',borderWidth:1.5,borderDash:[4,4],pointRadius:0,fill:false,order:0}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      onClick:(_e,els)=>{
+        if(!els.length) return;
+        const day=monthDays[els[0].index];
+        if(!day) return;
+        selDay=day; calMonth=5; calYear=2026;
+        renderCal(); updateHome(day);
+      },
+      plugins:{legend:{display:false},
+        tooltip:{filter:i=>i.datasetIndex===0,
+          callbacks:{title:i=>'Día '+i[0].label,label:i=>' '+i.raw+' personas',
+            afterLabel:i=>' Miraron: '+calData[monthDays[i.dataIndex]].looking+' ('+calData[monthDays[i.dataIndex]].rate+'%)'},
+          backgroundColor:'#fff',titleColor:'#1C1C1C',bodyColor:'#666',borderColor:'#EBEBEB',borderWidth:1,padding:10}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9,family:'Inter',weight:'700'},color:'#5e6e83',maxRotation:0,maxTicksLimit:15}},
+        y:{grid:{color:'#EBEBEB'},ticks:{font:{size:10,family:'Inter',weight:'700'},color:'#5e6e83',maxTicksLimit:5},border:{display:false},min:0}
+      }
+    }
+  });
+
+
+}
+// ══════════════════════════════
+// HOME INTERACTIVITY
+// ══════════════════════════════
+let selDay=10, calMonth=5, calYear=2026;
+const MNAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function updateHome(day){
+  const d=calData[day]||{total:184,looking:51,rate:28,avg:6.2};
+  const h=getDayHourly(day), l=getDayLooking(day), p=pass(h,l);
+  const cols=peakCols(l,p,'#3d1a6e','#D8D8D8','#1a0a3e','#c9b8e8');
+  chartHero.data.datasets[0].data=l; chartHero.data.datasets[0].backgroundColor=cols.dark;
+  chartHero.data.datasets[1].data=p; chartHero.data.datasets[1].backgroundColor=cols.light;
+  chartHero.update();
+  set('pieCenter',d.rate+'%');
+  const isToday=calMonth===5&&calYear===2026&&day===10;
+  set('heroLabel',isToday?'Actividad de hoy':'Actividad del '+day+' de '+MNAMES[calMonth].toLowerCase());
+  set('cmpTotal',d.total);
+  const allT=Object.values(calData).map(x=>x.total);
+  const allR=Object.values(calData).map(x=>x.rate);
+  const aT=Math.round(allT.reduce((a,b)=>a+b)/allT.length);
+  const aR=Math.round(allR.reduce((a,b)=>a+b)/allR.length);
+  set('cmpAvgTotal',aT); set('cmpAvgRate',aR+'%');
+  // Today's number: green if above monthly avg, red if below
+  const todayTEl = document.getElementById('cmpTotal');
+  const todayREl = document.getElementById('pieCenter');
+  if(todayTEl) todayTEl.style.color = d.total>aT ? '#22863A' : '#C4604A';
+  if(todayREl) todayREl.style.color = d.rate>aR  ? '#22863A' : '#C4604A';
+  // Monthly avg: always purple
+  const avgTEl=document.getElementById('cmpAvgTotal');
+  const avgREl=document.getElementById('cmpAvgRate');
+  if(avgTEl){ avgTEl.style.color='var(--purple)'; }
+  if(avgREl){ avgREl.style.color='var(--purple)'; }
+}
+
+function renderCal(){
+  const grid=document.getElementById('calGrid');
+  if(!grid) return;
+  grid.innerHTML='';
+  ['L','M','X','J','V','S','D'].forEach(d=>{
+    const el=document.createElement('div');
+    el.style.cssText='text-align:center;font-size:9px;font-weight:600;color:#bbb;padding-bottom:2px;';
+    el.textContent=d; grid.appendChild(el);
+  });
+  const first=new Date(calYear,calMonth,1).getDay();
+  const offset=first===0?6:first-1;
+  const days=new Date(calYear,calMonth+1,0).getDate();
+  const todayD=calMonth===5&&calYear===2026?10:-1;
+  for(let i=0;i<offset;i++) grid.appendChild(document.createElement('div'));
+  for(let d=1;d<=days;d++){
+    const data=calData[d];
+    const isSel=d===selDay&&calMonth===5&&calYear===2026;
+    const isTod=d===todayD;
+    const col=data?traffColor(data.total):{bg:'#EBEBEB',fg:'#bbb'};
+    const cell=document.createElement('div');
+    // style set below after range check
+    const circle=document.createElement('div');
+    circle.style.cssText=`width:24px;height:24px;border-radius:50%;background:${isSel?'var(--purple)':data?col.bg:'#EBEBEB'};color:${isSel?'#fff':data?col.fg==='#fff'?'#fff':'#333':'#bbb'};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:${isSel||isTod?700:500};outline:${isTod&&!isSel?'2.5px solid var(--purple)':'none'};outline-offset:1px;box-shadow:${isSel?'0 2px 8px rgba(61,26,110,.35)':'none'};transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s ease;`;
+    circle.textContent=d;
+    cell.onmouseenter=()=>{ circle.style.transform='scale(1.25)'; circle.style.boxShadow=isSel?'0 4px 12px rgba(61,26,110,.45)':'0 2px 8px rgba(0,0,0,.15)'; };
+    cell.onmouseleave=()=>{ circle.style.transform='scale(1)'; circle.style.boxShadow=isSel?'0 2px 8px rgba(61,26,110,.35)':'none'; };
+    cell.onclick=()=>{ selDay=d; renderCal(); updateHome(d); };
+    cell.appendChild(circle); grid.appendChild(cell);
+  }
+  set('calTitle',MNAMES[calMonth]+' '+calYear);
+}
+
+function calNav(dir){
+  calMonth+=dir;
+  if(calMonth>11){calMonth=0;calYear++;}
+  if(calMonth<0){calMonth=11;calYear--;}
+  renderCal();
+}
+
+let monthlyExpanded=false, expandTimer=null, collapseTimer=null, colorAnimId=null;
+
+function lerpHex(a,b,t){
+  const p=(h,i)=>parseInt(h.replace('#','').slice(i*2,i*2+2),16);
+  return '#'+[0,1,2].map(i=>Math.round(p(a,i)+(p(b,i)-p(a,i))*t).toString(16).padStart(2,'0')).join('');
+}
+function animateColors(from,to,ms){
+  if(colorAnimId) cancelAnimationFrame(colorAnimId);
+  const snap=from.slice(), t0=performance.now();
+  function tick(now){
+    const raw=Math.min((now-t0)/ms,1), t=raw<.5?2*raw*raw:-1+(4-2*raw)*raw;
+    currentColors=snap.map((f,i)=>lerpHex(f,to[i],t));
+    chartMonthly.data.datasets[0].backgroundColor=currentColors;
+    chartMonthly.update('none');
+    if(raw<1) colorAnimId=requestAnimationFrame(tick); else colorAnimId=null;
+  }
+  colorAnimId=requestAnimationFrame(tick);
+}
+function expandMonthly(expand){}
+
+// ══════════════════════════════
+// ANALYSIS
+// ══════════════════════════════
+const MN_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const WD_FULL  = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const MNAMES_AN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+let chartLineRef = null;
+let lookMode     = 'off';
+let secsFilter   = 2;
+let compareMode  = false;
+let rangeMode    = 'A';
+let rangeA       = { month:5, year:2026, start:4,  end:10 };
+let rangeB       = { month:5, year:2026, start:1,  end:7  };
+let pendingStart = null;
+let anCalMonth   = 5;
+let anCalYear    = 2026;
+let analysisMode = 'compare'; // 'compare' | 'weekday'
+let compareStep  = 'off';     // 'off' | 'pickA' | 'pickADone' | 'pickB' | 'pickBDone' | 'done'
+
+// Build a synthetic "previous month" dataset (31 days), derived from `base`
+// by scaling each value slightly. REAL BACKEND: this disappears entirely —
+// the API returns real data for the previous month directly.
+function buildPrevMonthData(base){
+  const out = {};
+  for(let d=1; d<=31; d++){
+    const src = base[((d-1)%30)+1];
+    const factor = 0.85 + ((d*7)%18)/100; // ~0.85 - 1.02 variance
+    out[d] = {
+      total: Math.round(src.total*factor),
+      looking: Math.round(src.looking*factor),
+      rate: src.rate,
+      avg: src.avg
+    };
+  }
+  return out;
+}
+
+function filterLook(arr, secs){
+  // 2s=100%, 5s~60%, 10s~25%, 15s~5%
+  if(!secs||secs<=2) return arr.map(v=>v);
+  const scale = Math.pow(Math.max(0.02, (16-secs)/14), 2);
+  return arr.map(v=>v===null?null:Math.max(0,Math.round(v*scale)));
+}
+function fmtRange(r){
+  if(!r) return '';
+  const m=MN_SHORT[r.month];
+  return r.start===r.end?(r.start+' '+m):(r.start+'–'+r.end+' '+m);
+}
+
+function daysInRange(range){
+  if(!range) return [];
+  const s=Math.min(range.start,range.end), e=Math.max(range.start,range.end);
+  const days=[]; for(let d=s;d<=e;d++) days.push(d); return days;
+}
+
+// If a range spans exactly 7 days, return weekday-name labels (Lunes..Domingo)
+// aligned to the actual day-of-week of each date. Otherwise returns null.
+function weekdayLabelsForRange(range){
+  if(!range) return null;
+  const days = daysInRange(range);
+  if(days.length !== 7) return null;
+  return days.map(d=>{
+    const dow = new Date(range.year, range.month, d).getDay(); // 0=Sun..6=Sat
+    const idx = dow===0 ? 6 : dow-1; // 0=Mon..6=Sun
+    return WD_FULL[idx];
+  });
+}
+
+function getRangeStats(range){
+  if(!range) return {total:[],look:[],labels:[]};
+  const source = range.month===4 ? calDataPrev : calData;
+  const days=daysInRange(range).filter(d=>source[d]);
+  if(!days.length) return {total:[],look:[],labels:[]};
+  return {total:days.map(d=>source[d].total),look:days.map(d=>source[d].looking),labels:days.map(d=>String(d))};
+}
+
+function statBlock(val,lbl){
+  return '<div style="flex:1;text-align:center;padding:4px 2px;">'
+    +'<div style="font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;">'+lbl+'</div>'
+    +'<div style="font-size:28px;font-weight:800;letter-spacing:-1px;color:var(--dark);line-height:1;">'+val+'</div>'
+    +'</div>';
+}
+
+function divider(){
+  return '<div style="width:1px;background:var(--gray5);margin:0 4px;align-self:stretch;"></div>';
+}
+
+function fillStats(elId, stats){
+  const el=document.getElementById(elId); if(!el) return;
+  const tot=stats.total.reduce((a,b)=>a+b,0)||0;
+  const lk=stats.look.reduce((a,b)=>a+b,0)||0;
+  const rate=tot?Math.round(lk/tot*100):0;
+  const avg=stats.total.length?Math.round(tot/stats.total.length):0;
+  el.innerHTML=statBlock(tot.toLocaleString('es-ES'),'Total pasando')+divider()+statBlock(avg,'Media diaria')+divider()+statBlock(rate+'%','Tasa');
+}
+
+function applyRangesToChart(){
+  if(!chartLineRef) return;
+  const sA=getRangeStats(rangeA);
+  const sB=(compareMode&&compareStep==='done')?getRangeStats(rangeB):{total:[],look:[],labels:[]};
+  const maxLen=Math.max(sA.labels.length,sB.labels.length,1);
+  const pad=arr=>[...arr,...Array(maxLen-arr.length).fill(null)];
+  const wdLabels = weekdayLabelsForRange(rangeA);
+  // For non-week comparisons, raw day-of-month numbers are ambiguous when A and B
+  // belong to different months (e.g. "5" could mean 5 jun or 5 may). Use relative
+  // "Día N" labels instead so both series align by position within their period.
+  chartLineRef.data.labels = wdLabels || Array.from({length:maxLen}, (_,i)=>'Día '+(i+1));
+  chartLineRef.data.datasets[0].data=pad(sA.total);
+  chartLineRef.data.datasets[1].data=pad(filterLook(sA.look,secsFilter));
+  chartLineRef.data.datasets[2].data=compareMode?pad(sB.total):[];
+  chartLineRef.data.datasets[3].data=compareMode?pad(filterLook(sB.look,secsFilter)):[];
+  const showLook=lookMode!=='off', onlyLook=lookMode==='solo';
+  chartLineRef.data.datasets[0].hidden=onlyLook;
+  chartLineRef.data.datasets[1].hidden=!showLook;
+  chartLineRef.data.datasets[2].hidden=!(compareMode&&compareStep==='done')||onlyLook;
+  chartLineRef.data.datasets[3].hidden=!(compareMode&&compareStep==='done')||!showLook;
+  chartLineRef.update();
+  set('titleA',fmtRange(rangeA));
+  set('titleB',compareMode?fmtRange(rangeB):'');
+  const lB=document.getElementById('legendB'); if(lB) lB.style.display=(compareMode&&compareStep==='done')?'flex':'none';
+  set('statLabelA',fmtRange(rangeA));
+  fillStats('statsViewA',sA);
+  if(compareMode){ set('statLabelB',fmtRange(rangeB)); fillStats('statsViewB',sB); }
+}
+
+function setLookMode(mode){
+  lookMode=mode;
+  ['lmOff','lmAdd','lmSolo'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const active=(id==='lm'+mode.charAt(0).toUpperCase()+mode.slice(1));
+    el.style.background=active?'var(--purple)':'transparent';
+    el.style.color=active?'#fff':'var(--gray3)';
+    el.style.fontWeight=active?'500':'400';
+  });
+  const sw=document.getElementById('secsWrap'); if(sw) sw.style.display=mode!=='off'?'flex':'none';
+  applyRangesToChart();
+}
+
+function toggleCompareMode(){
+  compareMode=!compareMode;
+  const btn  = document.getElementById('cmpBtn');
+  const knob = document.getElementById('cmpKnob');
+  const steps= document.getElementById('compareSteps');
+  const cardB= document.getElementById('statCardB');
+  if(btn)   btn.style.background = compareMode?'var(--purple)':'var(--gray5)';
+  if(knob)  knob.style.left      = compareMode?'18px':'2px';
+  if(steps) steps.style.display  = compareMode?'block':'none';
+  if(!compareMode){
+    compareStep='off'; pendingStart=null;
+    if(cardB) cardB.style.display='none';
+    setStepUI('off');
+    applyRangesToChart();
+  } else {
+    compareStep='pickA'; pendingStart=null;
+    rangeB=null; // sin rango B hasta que se elija explícitamente
+    setStepUI('pickA');
+  }
+  renderAnCal();
+}
+
+function setStepUI(step){
+  const g    = id => document.getElementById(id);
+  const msg  = g('stepMsg');
+  const nxt  = g('btnNext');
+  const cfm  = g('btnConfirm');
+  const rst  = g('btnReset');
+  const tagA = g('periodATag');
+  const tagB = g('periodBTag');
+
+  [nxt,cfm,rst].forEach(b=>{ if(b) b.style.display='none'; });
+
+  if(step==='off'){
+    if(msg) msg.textContent='';
+  } else if(step==='pickA'){
+    if(msg) msg.innerHTML='<span style="color:var(--purple);">①</span> Selecciona el primer período';
+    if(tagA){ tagA.style.borderColor='var(--purple)'; tagA.style.color='var(--purple)'; tagA.style.opacity='1'; }
+    if(tagB){ tagB.style.borderColor='var(--gray5)';  tagB.style.color='var(--gray4)'; tagB.style.opacity='.4'; }
+  } else if(step==='pickADone'){
+    if(msg) msg.innerHTML='<span style="color:var(--purple);">①</span> Período seleccionado';
+    if(nxt){ nxt.style.display='block'; nxt.style.width='100%'; }
+    if(tagA){ tagA.style.borderColor='var(--purple)'; tagA.style.color='var(--purple)'; }
+    if(tagB){ tagB.style.opacity='.4'; }
+  } else if(step==='pickB'){
+    if(msg) msg.innerHTML='<span style="color:#E8394A;">②</span> Selecciona el segundo período';
+    if(rst) rst.style.display='block';
+    if(tagB){ tagB.style.borderColor='#E8394A'; tagB.style.color='#E8394A'; tagB.style.opacity='1'; }
+  } else if(step==='pickBDone'){
+    if(msg) msg.innerHTML='<span style="color:#E8394A;">②</span> Período seleccionado';
+    if(cfm){ cfm.style.display='block'; cfm.style.width='100%'; }
+    if(rst) rst.style.display='block';
+    if(tagB){ tagB.style.borderColor='#E8394A'; tagB.style.color='#E8394A'; tagB.style.opacity='1'; }
+  } else if(step==='done'){
+    if(msg) msg.innerHTML='✓ Comparando los dos períodos';
+    if(rst) rst.style.display='block';
+    if(tagA){ tagA.style.borderColor='var(--purple)'; tagA.style.color='var(--purple)'; tagA.style.opacity='1'; }
+    if(tagB){ tagB.style.borderColor='#E8394A'; tagB.style.color='#E8394A'; tagB.style.opacity='1'; }
+  }
+}
+
+function compareNext(){
+  compareStep='pickB'; rangeMode='B'; pendingStart=null;
+  setStepUI('pickB');
+  renderAnCal();
+}
+
+function compareConfirm(){
+  compareStep='done';
+  const cardB=document.getElementById('statCardB');
+  if(cardB) cardB.style.display='flex';
+  setStepUI('done');
+  applyRangesToChart();
+}
+
+function compareReset(){
+  compareStep='pickA'; rangeMode='A'; pendingStart=null;
+  rangeA={ month:5, year:2026, start:4, end:10 };
+  rangeB=null;
+  const cardB=document.getElementById('statCardB');
+  if(cardB) cardB.style.display='none';
+  const lA=document.getElementById('periodALabel'), lB=document.getElementById('periodBLabel');
+  if(lA) lA.textContent='—'; if(lB) lB.textContent='—';
+  setStepUI('pickA');
+  renderAnCal();
+}
+
+// ══════════════════════════════
+// SHORTCUTS
+// ══════════════════════════════
+function enableCompareDone(){
+  compareMode=true;
+  const btn=document.getElementById('cmpBtn'), knob=document.getElementById('cmpKnob');
+  const steps=document.getElementById('compareSteps');
+  if(btn)  btn.style.background='var(--purple)';
+  if(knob) knob.style.left='18px';
+  if(steps) steps.style.display='block';
+
+  compareStep='done';
+  pendingStart=null;
+
+  const lA=document.getElementById('periodALabel'), lB=document.getElementById('periodBLabel');
+  if(lA) lA.textContent=fmtRange(rangeA);
+  if(lB) lB.textContent=fmtRange(rangeB);
+
+  const cardB=document.getElementById('statCardB');
+  if(cardB) cardB.style.display='flex';
+
+  setStepUI('done');
+
+  // Show rangeA's month on the calendar
+  anCalMonth=rangeA.month; anCalYear=rangeA.year;
+  renderAnCal();
+  ensureLineChart();
+  applyRangesToChart();
+}
+
+function applyShortcut(val){
+  if(!val) return;
+  const picker = document.getElementById('weekdayPicker');
+
+  if(val==='week'){
+    if(picker) picker.style.display='none';
+    analysisMode='compare';
+    rangeA={month:5,year:2026,start:8, end:14};
+    rangeB={month:5,year:2026,start:1, end:7};
+    enableCompareDone();
+
+  } else if(val==='month'){
+    if(picker) picker.style.display='none';
+    analysisMode='compare';
+    rangeA={month:5,year:2026,start:1, end:30}; // Junio completo
+    rangeB={month:4,year:2026,start:1, end:31}; // Mayo completo (datos sintéticos)
+    enableCompareDone();
+
+  } else if(val==='weekday'){
+    analysisMode='weekday';
+    if(picker) picker.style.display='block';
+    selectWeekday(0); // por defecto: Lunes
+  }
+}
+
+function selectWeekday(idx){
+  document.querySelectorAll('.wd-btn').forEach(b=>{
+    b.classList.toggle('active', Number(b.dataset.wd)===idx);
+  });
+  renderWeekdayChart(idx);
+}
+
+function statBlockSub(val, sub, lbl){
+  return '<div style="flex:1;text-align:center;padding:4px 2px;">'
+    +'<div style="font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;">'+lbl+'</div>'
+    +'<div style="font-size:28px;font-weight:800;letter-spacing:-1px;color:var(--dark);line-height:1;">'+val+'</div>'
+    +'<div style="font-size:10px;color:var(--gray3);margin-top:3px;">'+sub+'</div>'
+    +'</div>';
+}
+
+// ══════════════════════════════
+// WEEKDAY COMPARISON ("comparar días de la semana")
+// ══════════════════════════════
+function renderWeekdayChart(wdIndex){
+  const legendRow = document.getElementById('chartLegendRow');
+  const lookCtrls = document.getElementById('lookModeControls');
+
+  const WD_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  const wdLabel = WD_NAMES[wdIndex];
+
+  if(legendRow){
+    legendRow.style.display='flex';
+    legendRow.innerHTML = '<span style="font-size:12px;color:var(--dark);font-weight:600;">Todos los '+wdLabel.toLowerCase()+'s · Junio 2026</span>';
+  }
+  if(lookCtrls) lookCtrls.style.display='none';
+
+  // Destroy current chart and rebuild as a bar chart
+  if(chartLineRef){ chartLineRef.destroy(); chartLineRef=null; }
+
+  // Determine the weekday (0=Mon..6=Sun) of June 1st, 2026
+  const firstDow = new Date(2026,5,1).getDay(); // 0=Sun..6=Sat
+  const mondayIdx = firstDow===0 ? 6 : firstDow-1;
+
+  // All June days that fall on the selected weekday
+  const days=[];
+  for(let d=1; d<=30; d++){
+    if((mondayIdx+(d-1))%7 === wdIndex) days.push(d);
+  }
+
+  const totals = days.map(d=>calData[d].total);
+  const looks  = days.map(d=>calData[d].looking);
+  const labels = days.map(d=>d+' jun');
+  const avgTotal = Math.round(totals.reduce((a,b)=>a+b,0)/totals.length);
+
+  chartLineRef = new Chart(document.getElementById('chartLine'),{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Personas pasando', data:totals, backgroundColor:'#3d1a6e', borderRadius:6, borderSkipped:false, order:2 },
+        { label:'Media', data:Array(labels.length).fill(avgTotal), type:'line',
+          borderColor:'#1C1C1C', borderWidth:1.5, borderDash:[4,4], pointRadius:0, fill:false, order:1 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ backgroundColor:'#fff',titleColor:'#1C1C1C',bodyColor:'#666',borderColor:'#EBEBEB',borderWidth:1,padding:10,
+          filter:i=>i.datasetIndex===0,
+          callbacks:{ label: ctx => ' '+ctx.parsed.y+' personas pasando' } }
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{font:{size:13,family:'Inter',weight:'800'},color:'#3d1a6e'} },
+        y:{ grid:{color:'#EBEBEB'}, ticks:{font:{size:12,family:'Inter',weight:'800'},color:'#3d1a6e'}, border:{display:false}, min:0 }
+      }
+    }
+  });
+
+  // Stats: media del día elegido, y mejor/peor ocurrencia
+  const avgLook = Math.round(looks.reduce((a,b)=>a+b,0)/looks.length);
+  const maxV=Math.max(...totals), minV=Math.min(...totals);
+  const maxDay=days[totals.indexOf(maxV)], minDay=days[totals.indexOf(minV)];
+
+  set('statLabelA','Media de los '+wdLabel.toLowerCase()+'s');
+  const vA=document.getElementById('statsViewA');
+  if(vA) vA.innerHTML = statBlock(avgTotal,'Pasando')+divider()+statBlock(avgLook,'Mirando');
+
+  set('statLabelB','Mejor vs peor '+wdLabel.toLowerCase());
+  const vB=document.getElementById('statsViewB');
+  if(vB) vB.innerHTML = statBlockSub(maxV, maxDay+' jun', 'Mejor día')+divider()+statBlockSub(minV, minDay+' jun', 'Peor día');
+
+  const cardB=document.getElementById('statCardB');
+  if(cardB) cardB.style.display='flex';
+}
+
+function setRangeMode(mode){ rangeMode=mode; }
+
+function handleAnCalClick(day){
+  // Manual calendar interaction exits "weekday" comparison mode
+  if(analysisMode==='weekday'){
+    analysisMode='compare';
+    ensureLineChart();
+    const picker=document.getElementById('weekdayPicker');
+    if(picker) picker.style.display='none';
+  }
+  const sel=document.getElementById('shortcutSelect'); if(sel) sel.value='';
+
+  const active = compareMode ? rangeMode : 'A';
+  if(pendingStart === null){
+    pendingStart = day;
+    const r = {month:anCalMonth, year:anCalYear, start:day, end:day};
+    if(active==='A') rangeA=r; else rangeB=r;
+    renderAnCal();
+  } else {
+    const s=Math.min(pendingStart,day), e=Math.max(pendingStart,day);
+    const r = {month:anCalMonth, year:anCalYear, start:s, end:e};
+    if(active==='A'){
+      rangeA=r;
+      if(compareMode){
+        compareStep='pickADone';
+        const lA=document.getElementById('periodALabel');
+        if(lA) lA.textContent=fmtRange(r);
+        setStepUI('pickADone');
+      } else {
+        applyRangesToChart();
+      }
+    } else {
+      rangeB=r;
+      if(compareMode){
+        compareStep='pickBDone';
+        const lB=document.getElementById('periodBLabel');
+        if(lB) lB.textContent=fmtRange(r);
+        setStepUI('pickBDone');
+      }
+    }
+    pendingStart=null;
+    renderAnCal();
+  }
+}
+
+function handleAnCalHover(day){
+  // Only preview during pending selection, don't trigger re-render if same day
+  if(pendingStart===null) return;
+  const active=compareMode?rangeMode:'A';
+  const cur=active==='A'?rangeA:rangeB;
+  const s=Math.min(pendingStart,day), e=Math.max(pendingStart,day);
+  if(cur&&cur.start===s&&cur.end===e) return; // no change needed
+  const r={month:anCalMonth,year:anCalYear,start:s,end:e};
+  if(active==='A') rangeA=r; else rangeB=r;
+  renderAnCal();
+}
+
+function renderAnCal(){
+  const grid=document.getElementById('anCalGrid'); if(!grid) return;
+  grid.innerHTML='';
+  ['L','M','X','J','V','S','D'].forEach(d=>{
+    const el=document.createElement('div');
+    el.style.cssText='text-align:center;font-size:9px;font-weight:600;color:#bbb;padding-bottom:2px;';
+    el.textContent=d; grid.appendChild(el);
+  });
+  const first=new Date(anCalYear,anCalMonth,1).getDay();
+  const offset=first===0?6:first-1;
+  const days=new Date(anCalYear,anCalMonth+1,0).getDate();
+  // Show A range always (single mode or compare), show B only when actively picking/done B
+  const showB = compareMode && (compareStep==='pickB'||compareStep==='pickBDone'||compareStep==='done');
+  const dA = (rangeA && rangeA.month===anCalMonth && rangeA.year===anCalYear) ? daysInRange(rangeA) : [];
+  const dB = (showB && rangeB && rangeB.month===anCalMonth && rangeB.year===anCalYear) ? daysInRange(rangeB) : [];
+  for(let i=0;i<offset;i++) grid.appendChild(document.createElement('div'));
+  for(let d=1;d<=days;d++){
+    const inA=dA.includes(d), inB=dB.includes(d);
+    const isStartA=rangeA&&rangeA.month===anCalMonth&&d===Math.min(rangeA.start,rangeA.end);
+    const isEndA  =rangeA&&rangeA.month===anCalMonth&&d===Math.max(rangeA.start,rangeA.end);
+    const isStartB=compareMode&&rangeB&&rangeB.month===anCalMonth&&d===Math.min(rangeB.start,rangeB.end);
+    const isEndB  =compareMode&&rangeB&&rangeB.month===anCalMonth&&d===Math.max(rangeB.start,rangeB.end);
+    const cell=document.createElement('div');
+    // style set below after range check
+    // Determine visual state
+    let circleBg='transparent', circleColor='#555', circleFw='400', circleShadow='none';
+    let cellBg='transparent';
+
+    if(isStartA||isEndA){
+      circleBg='var(--purple)'; circleColor='#fff'; circleFw='700'; circleShadow='0 2px 6px rgba(61,26,110,.3)';
+    } else if(isStartB||isEndB){
+      circleBg='#E8394A'; circleColor='#fff'; circleFw='700';
+    } else if(inA&&inB){
+      cellBg='linear-gradient(rgba(61,26,110,.12),rgba(61,26,110,.12))'; circleColor='var(--purple)'; circleFw='600';
+    } else if(inA){
+      cellBg='rgba(61,26,110,.1)'; circleColor='var(--purple)'; circleFw='600';
+    } else if(inB){
+      cellBg='rgba(232,57,74,.1)'; circleColor='#E8394A'; circleFw='600';
+    }
+
+    // Cell has colored background strip for range days
+    cell.style.cssText=`display:flex;align-items:center;justify-content:center;padding:2px 0;cursor:pointer;background:${cellBg};`;
+    // Round caps at start/end of range
+    if((isStartA||isStartB)&&!(isEndA||isEndB)) cell.style.borderRadius='50% 0 0 50%';
+    else if((isEndA||isEndB)&&!(isStartA||isStartB)) cell.style.borderRadius='0 50% 50% 0';
+    else if((isStartA||isStartB)&&(isEndA||isEndB)) cell.style.borderRadius='50%';
+
+    const circle=document.createElement('div');
+    circle.style.cssText=`width:24px;height:24px;border-radius:50%;background:${circleBg};color:${circleColor};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:${circleFw};box-shadow:${circleShadow};transition:transform .15s cubic-bezier(.34,1.56,.64,1);`;
+    circle.textContent=d;
+    cell.onmouseenter=()=>{ circle.style.transform='scale(1.2)'; handleAnCalHover(d); };
+    cell.onmouseleave=()=>{ circle.style.transform='scale(1)'; };
+    cell.onclick=()=>handleAnCalClick(d);
+    cell.appendChild(circle); grid.appendChild(cell);
+  }
+  set('anCalTitle',MNAMES_AN[anCalMonth]+' '+anCalYear);
+}
+
+function anCalNav(dir){
+  anCalMonth+=dir;
+  if(anCalMonth>11){anCalMonth=0;anCalYear++;}
+  if(anCalMonth<0){anCalMonth=11;anCalYear--;}
+  renderAnCal();
+}
+
+function buildLineChartConfig(){
+  return {
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'A · pasando',data:[],borderColor:'#3d1a6e',backgroundColor:'rgba(61,26,110,.07)',
+       borderWidth:2.5,pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'#3d1a6e',tension:.35,fill:true},
+      {label:'A · mirando',data:[],borderColor:'rgba(61,26,110,.4)',backgroundColor:'transparent',
+       borderWidth:1.5,pointRadius:2,tension:.35,fill:false,hidden:true},
+      {label:'B · pasando',data:[],borderColor:'#E8394A',backgroundColor:'rgba(232,57,74,.07)',
+       borderWidth:2,borderDash:[6,4],pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'#E8394A',tension:.35,fill:true,hidden:true},
+      {label:'B · mirando',data:[],borderColor:'rgba(232,57,74,.4)',backgroundColor:'transparent',
+       borderWidth:1.5,borderDash:[4,3],pointRadius:2,tension:.35,fill:false,hidden:true},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#fff',titleColor:'#1C1C1C',bodyColor:'#666',borderColor:'#EBEBEB',borderWidth:1,padding:12,
+          callbacks:{
+            title: items => {
+              const idx = items[0] ? items[0].dataIndex : null;
+              if(idx==null) return '';
+              const daysA = daysInRange(rangeA);
+              const daysB = compareMode ? daysInRange(rangeB) : [];
+              const parts=[];
+              if(daysA[idx]!=null) parts.push('A: '+daysA[idx]+' '+MN_SHORT[rangeA.month]);
+              if(rangeB && daysB[idx]!=null) parts.push('B: '+daysB[idx]+' '+MN_SHORT[rangeB.month]);
+              return parts.join('   ·   ');
+            },
+            label: ctx=>' '+ctx.dataset.label+': '+ctx.parsed.y
+          }
+        }
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:13,family:'Inter',weight:'800'},color:'#3d1a6e',maxRotation:0}},
+        y:{grid:{color:'#EBEBEB'},ticks:{font:{size:12,family:'Inter',weight:'800'},color:'#3d1a6e',maxTicksLimit:6},border:{display:false},min:0}
+      }
+    }
+  };
+}
+
+function ensureLineChart(){
+  // Restore the normal header controls
+  const legendRow = document.getElementById('chartLegendRow');
+  const lookCtrls = document.getElementById('lookModeControls');
+  if(legendRow){
+    legendRow.style.display='flex';
+    legendRow.innerHTML = `
+      <div style="display:flex;align-items:center;gap:7px;">
+        <div style="width:20px;height:3px;background:var(--purple);border-radius:3px;"></div>
+        <span style="font-size:12px;color:var(--dark);font-weight:600;" id="titleA">—</span>
+      </div>
+      <div id="legendB" style="display:none;align-items:center;gap:7px;">
+        <div style="width:20px;height:3px;background:#E8394A;border-radius:3px;"></div>
+        <span style="font-size:12px;color:#E8394A;font-weight:600;" id="titleB">—</span>
+      </div>`;
+  }
+  if(lookCtrls) lookCtrls.style.display='flex';
+
+  if(chartLineRef && chartLineRef.config.type!=='line'){
+    chartLineRef.destroy();
+    chartLineRef=null;
+  }
+  if(!chartLineRef){
+    chartLineRef=new Chart(document.getElementById('chartLine'), buildLineChartConfig());
+  }
+}
+
+function initAnalysis(){
+  renderAnCal();
+  ensureLineChart();
+  applyRangesToChart();
+}
+
+// ══════════════════════════════
+// PAGE NAV
+// ══════════════════════════════
+function showPage(p){
+  document.getElementById('page-home').style.display=p==='home'?'':'none';
+  const anEl=document.getElementById('page-analysis'); anEl.style.display=p==='analysis'?'flex':'none'; anEl.style.flexDirection='column'; anEl.style.minHeight='calc(100vh - 72px)';
+  document.getElementById('nav-home').classList.toggle('active',p==='home');
+  document.getElementById('nav-analysis').classList.toggle('active',p==='analysis');
+  if(p==='analysis'&&!chartLineRef) initAnalysis();
+}
+
+// ══════════════════════════════
+// DATA API — single integration point with the backend
+// ══════════════════════════════
+// REAL BACKEND: replace the body of fetchDashboardData() with a single
+// call to your endpoint, e.g.:
+//
+//   async function fetchDashboardData(){
+//     const res = await fetch(`/api/stores/${STORE_ID}/dashboard?year=2026&month=06`);
+//     if(!res.ok) throw new Error('No se pudieron cargar los datos');
+//     return await res.json();
+//   }
+//
+// The response must have this shape:
+//   {
+//     daily:     { [dayOfMonth]: {total, looking, rate, avg}, ... },  // current month
+//     dailyPrev: { [dayOfMonth]: {total, looking, rate, avg}, ... },  // previous month
+//     hourly:    { [dayOfMonth]: {passing:[12 nums], looking:[12 nums]}, ... } // 9h-20h
+//   }
+const STORE_ID = 'demo-store';
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+async function fetchDashboardData(){
+  // ── MOCK — simulates network latency + builds the response from RAW_CAL_DATA ──
+  await sleep(350);
+  const hourly = {};
+  for(let d=1; d<=30; d++) hourly[d] = computeHourlyForDay(d, RAW_CAL_DATA[d]);
+  return {
+    daily: RAW_CAL_DATA,
+    dailyPrev: buildPrevMonthData(RAW_CAL_DATA),
+    hourly: hourly
+  };
+}
+
+// ══════════════════════════════
+// BOOTSTRAP
+// ══════════════════════════════
+async function initDashboard(){
+  try{
+    const data = await fetchDashboardData();
+    calData     = data.daily;
+    calDataPrev = data.dailyPrev;
+    HOURLY_DATA = data.hourly;
+
+    initHomeCharts();
+    renderCal();
+    updateHome(10);
+  } catch(err){
+    console.error('Error cargando el dashboard:', err);
+    const ov = document.getElementById('loadingOverlay');
+    if(ov) ov.innerHTML = '<div style="text-align:center;color:var(--gray3);font-size:13px;">No se pudieron cargar los datos.<br>Inténtalo de nuevo más tarde.</div>';
+    return;
+  }
+  const overlay = document.getElementById('loadingOverlay');
+  if(overlay) overlay.style.display='none';
+}
+
+initDashboard();
+
+</script>
+</body>
+</html>

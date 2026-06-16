@@ -8,6 +8,7 @@ bcrypt                 # password hashing (dashboard users)
 python-jose[cryptography]  # JWT for dashboard sessions
 psycopg2-binary        # PostgreSQL driver (production); tests use sqlite
 alembic                # database migrations
+tzdata                 # IANA timezone DB for zoneinfo (Windows + slim/alpine images)
 
 # Dev / test
 pytest>=8

@@ -29,6 +29,15 @@ class Settings(BaseSettings):
 
     environment: str = "development"             # "production" on the VM
 
+    # Browser origins allowed to call the API (the dashboard SPA). Comma-separated.
+    # "*" = allow any (safe here: auth is a Bearer token, not cookies). In
+    # production set VM_CORS_ORIGINS to the dashboard's real URL(s).
+    cors_origins: str = "*"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:

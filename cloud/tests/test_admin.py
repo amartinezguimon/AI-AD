@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 from cloud.app import provisioning as prov
+from cloud.app.models import Heartbeat, MetricBucket
 
 
 def _staff_login(client, db, email="ops@visionmetrics.ai", password="staffpw123"):
@@ -58,6 +61,46 @@ def test_global_fleet_spans_all_orgs(client, db_session):
     ids = {d["id"]: d for d in fleet}
     assert set(ids) == {"devA", "devB"}
     assert ids["devA"]["org_name"] == "OrgA" and ids["devA"]["status"] == "provisioned"
+
+
+def test_staff_me_returns_identity(client, db_session):
+    h = _staff_login(client, db_session, email="ops@vm.ai")
+    me = client.get("/v1/admin/me", headers=h).json()
+    assert me["email"] == "ops@vm.ai" and me["id"]
+
+
+def test_overview_counts_by_status(client, db_session):
+    h = _staff_login(client, db_session)
+    now = dt.datetime.now(dt.timezone.utc)
+    a = prov.create_org(db_session, "OrgA"); sa = prov.create_store(db_session, a.id, "SA")
+    online = prov.create_device(db_session, a.id, sa.id, "dOnline").device
+    offline = prov.create_device(db_session, a.id, sa.id, "dOffline").device
+    prov.create_device(db_session, a.id, sa.id, "dNever")        # never seen
+    online.last_seen_at = now
+    offline.last_seen_at = now - dt.timedelta(hours=2)
+    db_session.commit()
+
+    ov = client.get("/v1/admin/overview", headers=h).json()
+    assert ov["orgs"] == 1 and ov["stores"] == 1 and ov["devices"] == 3
+    assert ov["online"] == 1 and ov["offline"] == 1 and ov["never_seen"] == 1
+
+
+def test_fleet_includes_camera_health_and_dataflow(client, db_session):
+    h = _staff_login(client, db_session)
+    a = prov.create_org(db_session, "OrgA"); sa = prov.create_store(db_session, a.id, "SA")
+    dev = prov.create_device(db_session, a.id, sa.id, "devA").device
+    now = dt.datetime.now(dt.timezone.utc)
+    db_session.add(Heartbeat(org_id=a.id, device_id=dev.id, sent_at=now.timestamp(),
+                             camera_ok=True, fps_analysis=12.5, people_tracked=3))
+    db_session.add(MetricBucket(org_id=a.id, store_id=sa.id, device_id=dev.id,
+                                window_start=now.isoformat(), window_end=now.isoformat(),
+                                passersby=42, engaged=10, engagement_rate=23.8,
+                                total_attention_s=55.0))
+    db_session.commit()
+
+    d = {x["id"]: x for x in client.get("/v1/admin/fleet", headers=h).json()}["devA"]
+    assert d["camera_ok"] is True and d["fps_analysis"] == 12.5 and d["people_tracked"] == 3
+    assert d["recent_passersby"] == 42 and d["last_metric_at"] is not None
 
 
 def test_device_id_conflict(client, db_session):

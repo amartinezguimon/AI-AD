@@ -35,10 +35,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="VisionMetrics provisioning")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("setup", help="create org + store + device at once")
+    s = sub.add_parser("setup", help="create org + store + device (+ optional owner user) at once")
     s.add_argument("--org", required=True)
     s.add_argument("--store", required=True)
     s.add_argument("--device", required=True)
+    s.add_argument("--user", default=None, help="owner-admin email (optional)")
+    s.add_argument("--password", default=None, help="owner-admin password (required if --user given)")
 
     o = sub.add_parser("org"); o.add_argument("--name", required=True)
     st = sub.add_parser("store")
@@ -58,10 +60,15 @@ def main() -> int:
     db = SessionLocal()
     try:
         if args.cmd == "setup":
+            if args.user and not args.password:
+                ap.error("--password is required when --user is given")
             org = prov.create_org(db, args.org)
             store = prov.create_store(db, org.id, args.store)
             pd = prov.create_device(db, org.id, store.id, args.device)
             print(f"org_id={org.id}  store_id={store.id}")
+            if args.user:
+                uid = prov.create_user(db, org.id, args.user, args.password, role="admin").id
+                print(f"user_id={uid}  ({args.user}, admin)")
             _print_key(pd)
         elif args.cmd == "org":
             print("org_id=" + prov.create_org(db, args.name).id)

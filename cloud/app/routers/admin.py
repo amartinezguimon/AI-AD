@@ -16,13 +16,48 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..db import get_session
 from ..deps import get_current_staff
-from ..models import Device, Org, PlatformStaff, Store
+from ..models import Device, Heartbeat, MetricBucket, Org, PlatformStaff, Store
 from ..provisioning import create_device, create_org, create_store
 from ..schemas import (
-    AdminDeviceOut, DeviceCreateIn, DeviceKeyOut, OrgCreateIn, OrgOut, StoreCreateIn, StoreOut,
+    AdminDeviceOut, AdminOverviewOut, DeviceCreateIn, DeviceKeyOut, OrgCreateIn,
+    OrgOut, StaffMeOut, StoreCreateIn, StoreOut,
 )
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"], dependencies=[Depends(get_current_staff)])
+
+
+def _device_status(last_seen_at, now, offline_after) -> str:
+    if last_seen_at is None:
+        return "provisioned"
+    last = last_seen_at if last_seen_at.tzinfo else last_seen_at.replace(tzinfo=dt.timezone.utc)
+    return "online" if (now - last).total_seconds() <= offline_after else "offline"
+
+
+@router.get("/me", response_model=StaffMeOut)
+def staff_me(staff: PlatformStaff = Depends(get_current_staff)) -> StaffMeOut:
+    return StaffMeOut(id=staff.id, email=staff.email)
+
+
+@router.get("/overview", response_model=AdminOverviewOut)
+def overview(db: Session = Depends(get_session)) -> AdminOverviewOut:
+    """Platform-wide counts for the summary cards."""
+    offline_after = get_settings().device_offline_after_s
+    now = dt.datetime.now(dt.timezone.utc)
+    online = offline = never = 0
+    for (last_seen,) in db.execute(select(Device.last_seen_at)).all():
+        st = _device_status(last_seen, now, offline_after)
+        if st == "online":
+            online += 1
+        elif st == "offline":
+            offline += 1
+        else:
+            never += 1
+    return AdminOverviewOut(
+        orgs=int(db.scalar(select(func.count(Org.id))) or 0),
+        stores=int(db.scalar(select(func.count(Store.id))) or 0),
+        devices=int(db.scalar(select(func.count(Device.id))) or 0),
+        online=online, offline=offline, never_seen=never,
+    )
 
 
 @router.get("/orgs", response_model=list[OrgOut])
@@ -66,27 +101,42 @@ def add_device(body: DeviceCreateIn, db: Session = Depends(get_session)) -> Devi
 
 @router.get("/fleet", response_model=list[AdminDeviceOut])
 def global_fleet(db: Session = Depends(get_session)) -> list[AdminDeviceOut]:
-    """Every device across every client, with live online/offline status."""
+    """Every device across every client, with live status, camera health and a
+    data-flow signal (last metric + traffic in the last 24h) — so staff can tell
+    at a glance whether a store is genuinely healthy, not just powered on."""
     offline_after = get_settings().device_offline_after_s
     now = dt.datetime.now(dt.timezone.utc)
+    cutoff = (now - dt.timedelta(hours=24)).isoformat()
     rows = db.execute(
         select(Device, Org.name, Store.name)
         .join(Org, Device.org_id == Org.id)
         .join(Store, Device.store_id == Store.id)
+        .order_by(Org.name, Store.name)
     ).all()
 
     out: list[AdminDeviceOut] = []
     for d, org_name, store_name in rows:
-        if d.last_seen_at is None:
-            st = "provisioned"
-        else:
-            last = d.last_seen_at
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=dt.timezone.utc)
-            st = "online" if (now - last).total_seconds() <= offline_after else "offline"
+        hb = db.execute(
+            select(Heartbeat).where(Heartbeat.device_id == d.id)
+            .order_by(Heartbeat.received_at.desc()).limit(1)
+        ).scalar_one_or_none()
+        last_metric_at = db.scalar(
+            select(func.max(MetricBucket.window_start)).where(MetricBucket.device_id == d.id)
+        )
+        recent = db.scalar(
+            select(func.coalesce(func.sum(MetricBucket.passersby), 0))
+            .where(MetricBucket.device_id == d.id, MetricBucket.window_start >= cutoff)
+        )
         out.append(AdminDeviceOut(
             id=d.id, org_id=d.org_id, org_name=org_name, store_id=d.store_id,
-            store_name=store_name, status=st, agent_version=d.agent_version,
+            store_name=store_name,
+            status=_device_status(d.last_seen_at, now, offline_after),
+            agent_version=d.agent_version,
             last_seen_at=d.last_seen_at.isoformat() if d.last_seen_at else None,
+            camera_ok=hb.camera_ok if hb else None,
+            fps_analysis=hb.fps_analysis if hb else None,
+            people_tracked=hb.people_tracked if hb else None,
+            last_metric_at=last_metric_at,
+            recent_passersby=int(recent or 0),
         ))
     return out

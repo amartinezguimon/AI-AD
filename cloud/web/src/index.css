@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS variables kept available for the few spots that read them directly
+   (range-input accent, raw box-shadows) — same values as the Tailwind palette. */
+:root {
+  --bg: #f1eee8;
+  --card: #ffffff;
+  --dark: #1c1c1c;
+  --purple: #3d1a6e;
+  --slate: #5e6e83;
+  --yellow: #f0dc6a;
+  --gray3: #999;
+  --gray5: #ebebeb;
+  --gray6: #f5f5f5;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--dark);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.live-dot {
+  animation: blink 2s infinite;
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+/* Range slider accent (the "min. seconds" filter on the analysis page). */
+input[type="range"] {
+  accent-color: var(--purple);
+}

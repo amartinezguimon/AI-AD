@@ -1,8 +1,21 @@
-# Reverse proxy in front of the API. With a real domain in VM_DOMAIN, Caddy gets
-# and renews a Let's Encrypt certificate automatically (HTTPS, no extra config).
-# For local use, VM_DOMAIN defaults to localhost (Caddy serves an internal cert).
+# Front door for the whole stack. With a real domain in VM_DOMAIN, Caddy gets and
+# renews a Let's Encrypt certificate automatically (HTTPS, no extra config). For
+# local use, VM_DOMAIN defaults to localhost (Caddy serves an internal cert).
+#
+# It serves the dashboard SPA (static build in /srv) and proxies the API paths to
+# the backend. Same origin for both, so the SPA's relative `/v1` calls just work
+# and there's no CORS in production.
 
 {$VM_DOMAIN:localhost} {
 	encode gzip
-	reverse_proxy api:8000
+
+	# API, interactive docs and schema go to the FastAPI backend.
+	@api path /v1/* /docs /openapi.json /redoc
+	reverse_proxy @api api:8000
+
+	# Everything else is the single-page app. Unknown paths fall back to
+	# index.html so client-side routes (/login, /analysis, …) load on refresh.
+	root * /srv
+	try_files {path} /index.html
+	file_server
 }

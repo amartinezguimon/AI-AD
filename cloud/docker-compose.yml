@@ -39,7 +39,11 @@ services:
       - "8000"
 
   caddy:
-    image: caddy:2-alpine
+    # Builds the dashboard SPA and serves it + proxies the API (see web/Dockerfile).
+    # Context is this folder (cloud/) so the image can grab web/ and the Caddyfile.
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     restart: unless-stopped
     ports:
       - "80:80"
@@ -47,7 +51,6 @@ services:
     environment:
       VM_DOMAIN: ${VM_DOMAIN:-localhost}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
