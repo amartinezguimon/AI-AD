@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from .camera_model import focal_length_px
 from .engagement import EngagementTracker, EngagementParams
 from .tracking import ReconcileParams, TrackReconciler
-from .zone import EngagementZone, GazeReference, zone_confidence
+from .zone import CountingRegion, EngagementZone, GazeReference, zone_confidence
 
 ENGAGE_THRESHOLD = 0.50
 
@@ -64,6 +64,7 @@ class EngagementPipeline:
         zone_soft_margin: float = 0.30,
         reconcile_params: ReconcileParams | None = None,
         gaze_reference: GazeReference | None = None,
+        counting_region: CountingRegion | None = None,
     ):
         self.detector = detector
         self.head_pose = head_pose
@@ -73,6 +74,9 @@ class EngagementPipeline:
         # Per-store re-centring of head angles onto the window direction. Defaults
         # to no shift (uncalibrated / camera on the display).
         self.gaze = gaze_reference or GazeReference()
+        # Operator-drawn counting zone (feet must fall inside to be counted at all).
+        # None => count everywhere (uncalibrated behaviour).
+        self.region = counting_region
         self.fov_h_deg = fov_h_deg
         self.passerby_min_frames = max(1, passerby_min_frames)
         self.passerby_motion_px = passerby_motion_px
@@ -97,13 +101,25 @@ class EngagementPipeline:
         # Resolve raw ByteTrack ids to stable canonical ids before anything else,
         # so a re-detected person is recognised as the same individual.
         canon = self.reconciler.reconcile([(d.track_id, d.bbox) for d in dets], frame_idx)
+        frame_h, frame_w = frame.shape[0], frame.shape[1]
         for det, tid in zip(dets, canon):
+            x1, y1, x2, y2 = det.bbox
+            cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+
+            # Counting-zone gate: a person only counts (foot traffic AND engagement)
+            # if their feet fall inside the calibrated region. Applied BEFORE the
+            # persistence counter so out-of-zone frames don't build up. This is what
+            # rejects people too far to notice the window (e.g. across the street).
+            if self.region is not None:
+                feet_x = cx / frame_w if frame_w else 0.0
+                feet_y = y2 / frame_h if frame_h else 0.0
+                if not self.region.contains(feet_x, feet_y):
+                    continue
+
             seen = self._seen[tid] = self._seen.get(tid, 0) + 1
 
             # Track movement since first seen (cheap, every frame): a real person
             # walks; furniture doesn't.
-            x1, y1, x2, y2 = det.bbox
-            cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
             fx, fy = self._first_center.setdefault(tid, (cx, cy))
             if (cx - fx) ** 2 + (cy - fy) ** 2 >= self.passerby_motion_px ** 2:
                 self._moved.add(tid)

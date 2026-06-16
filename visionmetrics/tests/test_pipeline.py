@@ -8,7 +8,7 @@ import numpy as np
 
 from visionmetrics.edge.agent.engagement import EngagementParams
 from visionmetrics.edge.agent.pipeline import EngagementPipeline
-from visionmetrics.edge.agent.zone import GazeReference
+from visionmetrics.edge.agent.zone import CountingRegion, GazeReference
 from visionmetrics.edge.agent.vision.detector import Detection
 from visionmetrics.edge.agent.vision.face import HeadPose
 from visionmetrics.edge.agent.vision.pose import TorsoResult, NEUTRAL
@@ -97,7 +97,7 @@ STRAIGHT = HeadPose(yaw=0.0, pitch=0.0, distance=0.19, dist_m=1.0, nose_px=(10, 
 
 def make_pipeline(detector, head_pose, classifier_prob, *,
                   passerby_min_frames=1, passerby_motion_px=40,
-                  classifier=None, gaze_reference=None, **params):
+                  classifier=None, gaze_reference=None, counting_region=None, **params):
     return EngagementPipeline(
         detector=detector,
         head_pose=head_pose,
@@ -109,6 +109,7 @@ def make_pipeline(detector, head_pose, classifier_prob, *,
         passerby_min_frames=passerby_min_frames,
         passerby_motion_px=passerby_motion_px,
         gaze_reference=gaze_reference,
+        counting_region=counting_region,
     )
 
 
@@ -239,3 +240,32 @@ def test_departed_person_is_dropped_but_attention_kept():
     assert pipe.tracker.total_passersby == 1         # still counted
     assert pipe.tracker.total_engaged == 1
     assert pipe.tracker.total_attention_s() >= 3.0   # attention banked, not lost
+
+
+# FRAME is 480(h) x 640(w); feet = bbox bottom-centre, normalised by frame size.
+def test_person_outside_counting_region_is_not_counted():
+    # Region = bottom half only. A detection high in the frame (far away, feet at
+    # ~y=0.25) is ignored entirely — not a passerby, not scored.
+    region = CountingRegion.from_config(
+        {"polygon": [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]})
+    far = Detection(track_id=1, bbox=(560, 40, 620, 120), confidence=0.9)  # feet ~(0.92, 0.25)
+    pipe = make_pipeline(FakeDetector([far]), FakeHeadPose(STRAIGHT), 1.0,
+                         passerby_min_frames=1, counting_region=region,
+                         count_threshold_s=1.0)
+    for i in range(5):
+        r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 0
+    assert pipe.tracker.total_engaged == 0
+    assert r.persons == []
+
+
+def test_person_inside_counting_region_is_counted():
+    region = CountingRegion.from_config(
+        {"polygon": [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]})
+    near = Detection(track_id=1, bbox=(100, 300, 200, 460), confidence=0.9)  # feet ~(0.23, 0.96)
+    pipe = make_pipeline(FakeDetector([near]), FakeHeadPose(STRAIGHT), 1.0,
+                         passerby_min_frames=1, counting_region=region,
+                         count_threshold_s=1.0)
+    for i in range(3):
+        pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 1

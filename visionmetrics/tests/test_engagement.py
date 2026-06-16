@@ -69,6 +69,21 @@ def test_frame_buffer_voting_requires_quorum():
     assert not t.update(1, False, now=0.3).is_engaged  # [0,1,0] -> 1 of 3
 
 
+def test_short_window_is_discarded_as_flicker():
+    # A looking window shorter than min_engage_window_s is dropped on close, so
+    # micro-flickers (a shadow, a head briefly clipping "looking") don't accumulate.
+    t = fresh(frame_buffer_size=1, frame_engage_min=1, count_threshold_s=999,
+              min_engage_window_s=0.4)
+    t.update(1, raw_engaged=True, now=0.0)               # open window
+    t.update(1, raw_engaged=True, now=0.2)
+    r = t.update(1, raw_engaged=False, now=0.25)         # close: 0.25s < 0.4 -> discard
+    assert math.isclose(r.total_engage_s, 0.0, rel_tol=1e-9)
+    # A window at/above the threshold IS banked.
+    t.update(1, raw_engaged=True, now=1.0)
+    r2 = t.update(1, raw_engaged=False, now=2.0)          # 1.0s >= 0.4 -> banked
+    assert math.isclose(r2.total_engage_s, 1.0, rel_tol=1e-9)
+
+
 def test_forget_reverses_passerby_count():
     t = fresh()
     t.update(1, raw_engaged=False, now=0.0)

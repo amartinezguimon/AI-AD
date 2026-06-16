@@ -45,6 +45,49 @@ class GazeReference:
 
 
 @dataclass(frozen=True)
+class CountingRegion:
+    """A calibrated polygon (normalised [0..1] image coords) that bounds where we
+    count people at all. A person is counted — as a passerby AND for engagement —
+    only if their reference point (feet: bbox bottom-centre) falls inside it.
+
+    This is the operator-drawn "counting zone": it discards people too far to
+    notice the window (e.g. across the street) and anyone outside the storefront
+    area, fixing the "far people counted" problem at the source. Image-space, so
+    it must be re-drawn if the camera is moved. ``None``/empty => count everywhere
+    (prior behaviour preserved).
+    """
+    polygon: tuple[tuple[float, float], ...] = ()
+
+    @classmethod
+    def from_config(cls, region: dict | None) -> "CountingRegion | None":
+        """Build from the ``counting_region`` block of a calibration config."""
+        if not region:
+            return None
+        poly = region.get("polygon") or []
+        if len(poly) < 3:                       # a polygon needs >= 3 vertices
+            return None
+        return cls(polygon=tuple((float(x), float(y)) for x, y in poly))
+
+    def contains(self, x: float, y: float) -> bool:
+        """Point-in-polygon (ray casting). x, y are normalised [0..1] image coords."""
+        poly = self.polygon
+        n = len(poly)
+        if n < 3:
+            return True                         # degenerate => don't filter
+        inside = False
+        j = n - 1
+        for i in range(n):
+            xi, yi = poly[i]
+            xj, yj = poly[j]
+            if ((yi > y) != (yj > y)) and (
+                x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi
+            ):
+                inside = not inside
+            j = i
+        return inside
+
+
+@dataclass(frozen=True)
 class EngagementZone:
     """Calibrated boundaries for one display, produced by calibration."""
     yaw_min: float

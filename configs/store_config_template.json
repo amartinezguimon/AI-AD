@@ -16,5 +16,9 @@
     "pitch_min":  0.02,
     "pitch_max":  0.22,
     "dist_min":   0.04
+  },
+  "_counting_region_help": "OPTIONAL. The area that counts as your storefront. People whose feet fall outside it are ignored (e.g. someone across the street). Draw it with:  python -m visionmetrics.edge.tools.draw_zone --source 0 --config configs/store_config.json . Omit the block to count everywhere.",
+  "counting_region": {
+    "polygon": [[0.10, 0.45], [0.90, 0.45], [0.98, 1.0], [0.02, 1.0]]
   }
 }

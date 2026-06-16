@@ -23,6 +23,10 @@ class EngagementParams:
     frame_engage_min: int = 1           # >= this many engaged frames in the buffer => engaged
     count_threshold_s: float = 2.0      # attention before a person counts as "engaged"
     zone_soft_margin: float = 0.30      # width of the soft engagement-zone edge (used by pipeline)
+    # Anti-flicker: a looking window shorter than this (seconds) is discarded when
+    # it closes, instead of being banked. Stops sub-second glances/noise (a shadow,
+    # a head that briefly clips "looking") from accumulating toward the count.
+    min_engage_window_s: float = 0.4
 
 
 @dataclass
@@ -111,8 +115,10 @@ class EngagementTracker:
                 state.engage_start = now              # open a new window
             state.total_engage_s = state.cumulative_engage_s + (now - state.engage_start)
         else:
-            if state.engage_start is not None:        # close & bank the window
-                state.cumulative_engage_s += now - state.engage_start
+            if state.engage_start is not None:        # close the window
+                dur = now - state.engage_start
+                if dur >= p.min_engage_window_s:      # bank it; else discard micro-flicker
+                    state.cumulative_engage_s += dur
                 state.engage_start = None
             state.total_engage_s = state.cumulative_engage_s
 

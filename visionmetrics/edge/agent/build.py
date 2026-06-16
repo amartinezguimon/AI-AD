@@ -18,7 +18,7 @@ from .tracking import ReconcileParams
 from .vision.detector import PersonDetector
 from .vision.face import HeadPoseAnalyzer
 from .vision.pose import TorsoAnalyzer
-from .zone import EngagementZone, GazeReference
+from .zone import CountingRegion, EngagementZone, GazeReference
 
 
 def _load_calibration(config: DeviceConfig) -> dict | None:
@@ -43,6 +43,12 @@ def load_gaze_reference(config: DeviceConfig) -> GazeReference:
     return GazeReference.from_config(raw.get("engagement_zone")) if raw else GazeReference()
 
 
+def load_counting_region(config: DeviceConfig) -> CountingRegion | None:
+    """Load the per-store counting polygon, or None (count everywhere)."""
+    raw = _load_calibration(config)
+    return CountingRegion.from_config(raw.get("counting_region")) if raw else None
+
+
 def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
     ensure_models(config)   # self-bootstrap: fetch missing MediaPipe task files
     v = config.vision
@@ -63,6 +69,7 @@ def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
         detector=detector, head_pose=head_pose, torso=torso, classifier=classifier,
         zone=load_zone(config),
         gaze_reference=load_gaze_reference(config),
+        counting_region=load_counting_region(config),
         engagement_params=config.engagement,
         fov_h_deg=config.camera.fov_h_deg,
         passerby_min_frames=v.passerby_min_frames,

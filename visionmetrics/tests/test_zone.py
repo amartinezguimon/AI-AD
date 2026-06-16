@@ -2,7 +2,31 @@
 
 import math
 
-from visionmetrics.edge.agent.zone import EngagementZone, GazeReference, zone_confidence
+from visionmetrics.edge.agent.zone import (
+    CountingRegion, EngagementZone, GazeReference, zone_confidence,
+)
+
+
+def test_counting_region_none_when_empty_or_too_few_points():
+    assert CountingRegion.from_config(None) is None
+    assert CountingRegion.from_config({}) is None
+    assert CountingRegion.from_config({"polygon": [[0.0, 0.0], [1.0, 1.0]]}) is None  # < 3
+
+
+def test_counting_region_contains_square():
+    r = CountingRegion.from_config(
+        {"polygon": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
+    assert r is not None
+    assert r.contains(0.5, 0.5) is True
+    assert r.contains(0.5, 1.5) is False   # below
+    assert r.contains(-0.1, 0.5) is False  # left of it
+
+
+def test_counting_region_contains_triangle():
+    r = CountingRegion.from_config({"polygon": [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]})
+    assert r is not None
+    assert r.contains(0.1, 0.1) is True
+    assert r.contains(0.9, 0.9) is False   # outside the hypotenuse
 
 
 def test_gaze_reference_defaults_to_no_shift():
