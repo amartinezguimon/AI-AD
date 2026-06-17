@@ -12,7 +12,7 @@ PURPOSE:
     scalable to any store without retraining the AI.
 
 HOW TO RUN:
-    python src/utils/calibrate.py
+    python visionmetrics/edge/tools/calibrate.py
 
 SETUP BEFORE RUNNING:
     1. Mount your camera (iPhone via Iriun/Camo, or laptop webcam) exactly

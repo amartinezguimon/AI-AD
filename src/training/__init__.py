@@ -1,1 +1,0 @@
-# VisionMetrics AI — training package

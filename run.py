@@ -77,7 +77,7 @@ def dibujar_zona() -> None:
 
 
 def ver_camaras() -> None:
-    _run(["src/utils/check_cameras.py"])
+    _run(["visionmetrics/edge/tools/check_cameras.py"])
 
 
 MENU = {

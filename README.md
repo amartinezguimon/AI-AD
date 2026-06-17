@@ -1,234 +1,60 @@
 # VisionMetrics AI
 
-> **Privacy-preserving computer vision for real-world advertisement engagement analytics.**
+> **Privacy-preserving computer vision for retail shop-window engagement analytics.**
 
-VisionMetrics measures how people interact with physical advertisements (store windows, jewelry displays, product vitrinas) using a camera-based AI pipeline. It tracks foot traffic, attention time, gaze direction, and triggers live interactions — all without storing any images or identifying individuals.
+VisionMetrics measures how people interact with a shop window: foot traffic (who
+walks past), attention (who stops to look) and dwell time — and shows it to the
+store on a web dashboard. It is being built as a multi-tenant SaaS for a pilot in
+real stores.
 
-> **📦 Project status — productization in progress.**
-> The repository now has two codebases:
-> - **`src/`** — the original prototype (this README), **frozen** but still runnable.
-> - **`visionmetrics/`** — the productized monorepo (edge agent + cloud + dashboard) being built toward a SaaS pilot. See [`ROADMAP.md`](ROADMAP.md) and [`visionmetrics/README.md`](visionmetrics/README.md).
->
-> **👉 To run or test the current system, use [`EMPEZAR_AQUI.md`](EMPEZAR_AQUI.md)** (one-click
-> `DEMO.bat` / `python run.py`). It uses the new agent + current model. **Do NOT use the
-> `python src/inference/main.py` commands below — that is the legacy prototype.**
->
-> Everything below describes the legacy prototype.
+**Golden rule (privacy by design):** the video **never leaves the store**. All
+processing happens on a small box next to the camera; only **anonymous aggregate
+numbers** (counts per time window) travel to the cloud. No faces, no identities,
+no images are stored or transmitted. Counting is done by **zone crossings, not by
+recognising people** — see `SYSTEM_DESIGN.md`.
 
----
+## Run it / test it
+👉 **[`EMPEZAR_AQUI.md`](EMPEZAR_AQUI.md)** — one-click demo (`DEMO.bat` / `python run.py`):
+a menu to run the live model, collect training data, or draw the counting zone, for
+a non-technical colleague. Start there.
 
-## Architecture — 7-Layer Pipeline
-
+## Architecture (3 rings)
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Camera Feed                                                     │
-│      ↓                                                           │
-│  Layer 1: YOLOv8 ──────────── Detect & track persons by ID      │
-│      ↓                                                           │
-│  Layer 2: Head Crop + 4× Upscale ── Enable detection at 4m+     │
-│      ↓                                                           │
-│  Layer 3: MediaPipe Face ──── Extract yaw, pitch, distance       │
-│      ↓                                                           │
-│  Layer 4: PyTorch MLP ─────── Classify Engaged vs Away           │
-│      ↓                                                           │
-│  Layer 5: MediaPipe Pose ──── Torso orientation (walk-by filter) │
-│      ↓                                                           │
-│  Layer 6: Soft Zone Filter ── Calibrated engagement boundaries   │
-│      ↓                                                           │
-│  Layer 7: Frame Buffer ────── Temporal smoothing (3-frame vote)  │
-│      ↓                                                           │
-│  Analytics HUD + Live Dashboard                                  │
-└─────────────────────────────────────────────────────────────────┘
+Camera ─► Edge box (mini-PC, the "brain")  ─►  Cloud (API + DB)  ─►  Web dashboard
+          detect → track → head pose →           multi-tenant,        client panel +
+          engagement model → count by zone       only aggregates      staff back-office
 ```
 
-### What It Measures
-1. **Foot Traffic** — Count of unique people passing the display.
-2. **Attention Time** — Duration each person spent looking at the display.
-3. **Engagement Classification** — Real-time Engaged/Away status per person.
-4. **Gaze Accuracy** — Quantitative yaw/pitch metrics on head orientation.
-
----
-
-## Project Structure
-
+## Repository layout
 ```
-├── src/
-│   ├── inference/
-│   │   ├── main.py              # Full 7-layer live inference pipeline
-│   │   └── detect.py            # Standalone YOLO detection helper
-│   ├── training/
-│   │   └── train_report.py      # Academic-report figures (loss curves, ROC, confusion matrix)
-│   │                            # collector + trainer now live in visionmetrics/training/
-│   └── utils/
-│       ├── calibrate.py         # Per-store calibration wizard
-│       └── check_cameras.py     # Lists available camera indices
-│
-├── models/
-│   └── engagement_model.pth     # Trained PyTorch weights (included — ready to run)
-│
-├── configs/
-│   └── store_config_template.json  # Example store calibration config
-│
-├── data/
-│   └── engagement_data.csv      # 1,127 labelled rows (real, no augmentation)
-│
-├── dashboard.html               # Chart.js live analytics dashboard
-├── requirements.txt             # Python dependencies
-└── .gitignore
+visionmetrics/          # the product (edge + shared)
+  edge/agent/           #   the edge pipeline (detection, tracking, engagement, counting)
+  edge/tools/           #   operator tools: draw_zone, calibrate, check_cameras
+  edge/config/          #   device.example.yaml (per-box config)
+  training/             #   collect → build_dataset → train (the engagement model)
+  tests/                #   ~100 unit tests (no camera/GPU needed)
+cloud/                  # backend + dashboard
+  app/                  #   FastAPI: ingest, auth, dashboard, admin (multi-tenant)
+  web/                  #   React + Vite + TypeScript dashboard (client + /staff)
+  scripts/              #   provision, seed_demo, import_report
+configs/                # demo.yaml + store calibration template
+data/  models/  fixtures/   # datasets, model weights, test clips
+run.py  DEMO.bat  EMPEZAR_AQUI.md   # one-stop demo launcher + guide
+SYSTEM_DESIGN.md  ROADMAP.md         # design blueprint + plan
 ```
 
----
-
-## Runnable Components
-
-Run both together for the full demo:
-
-**Terminal 1 — AI engine (required for everything below)**
+## Develop
 ```bash
-python src/inference/main.py
+python -m venv venv && venv/Scripts/activate      # (source venv/bin/activate on mac/linux)
+pip install -r requirements.txt                   # edge + training deps
+pip install -r cloud/requirements.txt             # backend deps
+
+python -m pytest visionmetrics/tests -q           # edge/training tests
+python -m pytest cloud/tests -q                   # backend tests
 ```
-On startup, if no calibration file exists (fresh clone), it skips automatically and runs the PyTorch model only — no action needed.
+- Edge agent: `python -m visionmetrics.edge.agent.service --config <device.yaml> [--debug]`
+- Backend + dashboard: see [`cloud/README.md`](cloud/README.md).
+- Training workflow: see [`visionmetrics/training/README.md`](visionmetrics/training/README.md).
 
-**Terminal 2 — Web server (required for the dashboard)**
-```bash
-python -m http.server 8080
-```
-
-Then open the dashboard:
-
-| # | What it does | URL |
-|---|---|---|
-| 1 | **Live Dashboard** — real-time analytics, charts, foot traffic | `http://localhost:8080/dashboard.html` |
-
-> Do NOT open the HTML file directly from your file system (`file://`) — use the URL above or `fetch()` will be blocked by the browser.
-
-All of it works after the Quick Start setup below (install once, then run).
-
----
-
-## Prerequisites
-
-- **Python 3.10+**
-- **Camera** — Laptop webcam, USB webcam, or iPhone (via [Iriun Webcam](https://iriun.com/))
-- **Internet** — Required on first run only (to auto-download YOLOv8 and MediaPipe models)
-
----
-
-## Quick Start
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/amartinezguimon/AI-AD.git
-cd AI-AD
-
-# 2. Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Mac/Linux
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Run the live system (models auto-download on first run)
-python src/inference/main.py
-```
-
-> **First time?** Follow the Quick Start steps above. Change `CAMERA_INDEX = 0` in `src/inference/main.py` if the default camera does not open.
-
----
-
-## Usage
-
-### Live Inference
-```bash
-python src/inference/main.py
-```
-**Controls** (click the video window first):
-| Key | Action |
-|-----|--------|
-| `T` | Toggle Training Mode |
-| `L` | Label current frame as **LOOK** (training mode) |
-| `A` | Label current frame as **AWAY** (training mode) |
-| `Q` | Quit and save |
-
-### Calibration (once per store/location)
-```bash
-python src/utils/calibrate.py
-```
-Follow the on-screen prompts to define the engagement zone boundaries.
-
-### Training (collect → merge → retrain)
-The collector + trainer live in `visionmetrics/training/` (built on the production
-pipeline, so no train/serve skew). Full workflow — including how a non-technical
-collector sends data back — in [`visionmetrics/training/README.md`](visionmetrics/training/README.md).
-```bash
-# Collect labelled data (on the camera). G/H tag glasses/cap; L/A label looking/away.
-python -m visionmetrics.training.collect --collector hector
-
-# Merge all collected sessions into the master dataset + coverage report
-python -m visionmetrics.training.build_dataset
-
-# Retrain the PyTorch model (per-condition accuracy report)
-python -m visionmetrics.training.train
-```
-> The old `src/training/data_collector.py` + `train.py` were removed (superseded by
-> the above; the old collector duplicated feature logic and risked train/serve skew).
-
-### Reproduce Results (Evaluation Metrics & Figures)
-```bash
-python src/training/train_report.py   # academic-report figures (loss curves, ROC, confusion matrix)
-```
-Generates under `figures/` (created automatically): training/validation loss curves, confusion matrix, ROC curve, per-distance accuracy bar chart, `metrics.json`, and `classification_report.txt`.
-
-The test set (226 rows) is held out from **real rows only** before any augmentation, preventing data leakage. Expected results: accuracy ~99.6%, F1 ~0.996, ROC-AUC ~0.999.
-
-### Live Dashboard
-```bash
-# Terminal 1: Start the web server
-python -m http.server 8080
-
-# Terminal 2: Run the AI engine
-python src/inference/main.py
-```
-Then open **http://localhost:8080/dashboard.html** in your browser.
-
-> Do NOT open `dashboard.html` as a `file://` URL — `fetch()` will be blocked by browser CORS policy.
-
----
-
-## Camera Setup
-
-| Camera | Quality | Range | Setup |
-|--------|---------|-------|-------|
-| iPhone (via Iriun/Camo) | ⭐⭐⭐⭐⭐ | Up to 4m | Download Iriun app, connect via Wi-Fi |
-| USB Webcam (Logitech C920) | ⭐⭐⭐⭐ | Up to 3m | Plug in USB |
-| Laptop Webcam | ⭐⭐ | Up to 1.5m | No setup needed |
-
-Change `CAMERA_INDEX` in `src/inference/main.py` if using an external camera (typically `1` or `2`).  
-Run `python src/utils/check_cameras.py` to discover available camera indices.
-
----
-
-## Privacy & GDPR Compliance
-
-VisionMetrics is built on **Privacy by Design** principles:
-- ❌ No images or video are ever saved to disk
-- ❌ No facial recognition or biometric identity processing
-- ❌ No individual behavioural histories retained
-- ✅ All processing is local (edge-only, no cloud)
-- ✅ Only anonymous aggregate metrics are exported
-
-The system processes only anonymous geometric data (head angles) and never stores images, video, or biometric identifiers.
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Person Detection & Tracking | YOLOv8 (Ultralytics) |
-| Head Pose Estimation | MediaPipe Face Landmarker |
-| Body Orientation | MediaPipe Pose Landmarker |
-| Engagement Classifier | PyTorch (custom MLP) |
-| Live Dashboard | HTML + Chart.js |
-| Camera Interface | OpenCV |
+## Status
+Productization in progress toward a store pilot. See [`ROADMAP.md`](ROADMAP.md).

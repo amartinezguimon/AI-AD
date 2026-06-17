@@ -1,9 +1,9 @@
 """Head-pose geometry — the single source of truth for face angles.
 
-This logic was previously DUPLICATED in src/inference/main.py
-(`extract_face_angles`) and src/utils/calibrate.py (`get_angles`). Having two
-copies caused a real production bug once (calibrate used eye corners while main
-used cheekbones, producing a systematic zone mismatch). It now lives here, once.
+This logic was previously DUPLICATED across the prototype (the old monolithic
+agent and the calibration tool). Having two copies caused a real bug once (one
+used eye corners while the other used cheekbones, producing a systematic zone
+mismatch). It now lives here, once.
 
 The functions are pure and framework-agnostic: they take any sequence of
 landmarks where each landmark exposes ``.x`` and ``.y`` floats normalised to
