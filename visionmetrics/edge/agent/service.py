@@ -35,8 +35,11 @@ _PERF_INTERVAL_S = 5.0
 AGENT_VERSION = "0.2.0"
 
 
-def run(config_path: str, debug: bool = False, report_path: str | None = None) -> int:
+def run(config_path: str, debug: bool = False, report_path: str | None = None,
+        source: str | None = None) -> int:
     config = DeviceConfig.load(config_path)
+    if source is not None:                     # CLI override (e.g. pick the Camo camera index)
+        config.camera.source = int(source) if str(source).isdigit() else source
     print(f"[agent] device={config.device.device_id} store='{config.device.store_name}'")
 
     print("[agent] loading models and building pipeline...")
@@ -215,8 +218,9 @@ def main() -> int:
     ap.add_argument("--config", required=True, help="path to device.yaml")
     ap.add_argument("--debug", action="store_true", help="show an OpenCV preview window")
     ap.add_argument("--report", default=None, help="write a session report (JSON) here on exit")
+    ap.add_argument("--source", default=None, help="override camera source (e.g. 1 for Camo)")
     args = ap.parse_args()
-    return run(args.config, debug=args.debug, report_path=args.report)
+    return run(args.config, debug=args.debug, report_path=args.report, source=args.source)
 
 
 if __name__ == "__main__":

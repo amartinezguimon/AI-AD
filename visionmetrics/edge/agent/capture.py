@@ -13,10 +13,25 @@ the same to OpenCV; the differences this class handles are:
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 
 import cv2
+
+
+def open_capture(source):
+    """Open a cv2 capture, preferring DirectShow on Windows for webcam/virtual-cam
+    indices (Camo Studio, OBS, etc. often fail under the default MSMF backend).
+    A string digit ("1") is treated as a webcam index."""
+    if isinstance(source, str) and source.isdigit():
+        source = int(source)
+    if isinstance(source, int) and sys.platform.startswith("win"):
+        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+        if cap.isOpened():
+            return cap
+        cap.release()
+    return cv2.VideoCapture(source)
 
 
 def _is_realtime(source) -> bool:
@@ -29,6 +44,9 @@ def _is_realtime(source) -> bool:
 
 class VideoSource:
     def __init__(self, source, *, reconnect_delay_s: float = 2.0):
+        # "1" (string) from a CLI/config still means webcam index 1.
+        if isinstance(source, str) and source.isdigit():
+            source = int(source)
         self.source = source
         self.reconnect_delay_s = reconnect_delay_s
         self.realtime = _is_realtime(source)
@@ -45,7 +63,7 @@ class VideoSource:
 
     # ── lifecycle ────────────────────────────────────────────────
     def open(self) -> bool:
-        self._cap = cv2.VideoCapture(self.source)
+        self._cap = open_capture(self.source)
         if not self._cap.isOpened():
             return False
         if self.realtime:
@@ -102,4 +120,4 @@ class VideoSource:
             self._cap.release()
         if self._stop.wait(self.reconnect_delay_s):
             return
-        self._cap = cv2.VideoCapture(self.source)
+        self._cap = open_capture(self.source)

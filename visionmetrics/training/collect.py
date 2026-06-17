@@ -106,6 +106,7 @@ def run(camera, output=None, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
     import cv2
 
     from ..edge.agent.camera_model import focal_length_px
+    from ..edge.agent.capture import open_capture
     from ..edge.agent.config import DeviceConfig
     from ..edge.agent.models_bootstrap import ensure_models
     from ..edge.agent.vision.detector import PersonDetector
@@ -123,10 +124,9 @@ def run(camera, output=None, *, fov_h_deg=70.0, every=2, conf=0.25, aspect=0.30,
         head_upscale=v.head_upscale, skip_frames=1,   # analyse EVERY frame (no skipping)
     )
 
-    src = int(camera) if str(camera).isdigit() else camera
-    cap = cv2.VideoCapture(src)
+    cap = open_capture(camera)   # DirectShow on Windows so Camo/OBS open
     if not cap.isOpened():
-        print(f"ERROR: cannot open camera {camera!r}")
+        print(f"ERROR: cannot open camera {camera!r}. Run 'Ver cámaras' to find the number.")
         return 1
 
     # One file per RUN (a "session"). Record as many people as you like in one run;

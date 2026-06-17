@@ -107,14 +107,19 @@ else:
     print("⚠️  yolov8n.pt not found — falling back to full-frame upscale (closer range only).")
 
 # ─────────────────────────────────────────────
-# OPEN CAMERA
-# Change CAMERA_INDEX to 1 if using iPhone via Iriun/Camo
+# OPEN CAMERA  (index from VM_CAMERA env, default 0; DirectShow on Windows for Camo/OBS)
 # ─────────────────────────────────────────────
-CAMERA_INDEX = 2
-cap = cv2.VideoCapture(CAMERA_INDEX)
+import sys
+CAMERA_INDEX = int(os.environ.get("VM_CAMERA", "0"))
+if sys.platform.startswith("win"):
+    cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(CAMERA_INDEX)   # fallback to default backend
+else:
+    cap = cv2.VideoCapture(CAMERA_INDEX)
 
 if not cap.isOpened():
-    print(f"ERROR: Cannot open camera {CAMERA_INDEX}. Try index 1 for iPhone.")
+    print(f"ERROR: Cannot open camera {CAMERA_INDEX}. Run 'Ver cámaras' to find the right number.")
     exit()
 
 # ─────────────────────────────────────────────

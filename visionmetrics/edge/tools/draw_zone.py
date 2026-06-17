@@ -81,11 +81,14 @@ def _grab_frame(source: str):
             raise SystemExit(f"Could not read image: {source}")
         return frame
 
-    cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
+    from ..agent.capture import open_capture  # DirectShow on Windows so Camo/OBS open
+
+    cap = open_capture(source)
     ok, frame = cap.read()
     cap.release()
     if not ok or frame is None:
-        raise SystemExit(f"Could not grab a frame from source: {source}")
+        raise SystemExit(f"Could not grab a frame from source: {source}. "
+                         "Run 'Ver cámaras' to find the right number.")
     return frame
 
 

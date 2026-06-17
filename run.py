@@ -11,6 +11,7 @@ Pensado para una demo local (portátil + webcam); la versión por tienda vendrá
 from __future__ import annotations
 
 import datetime as dt
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -44,9 +45,20 @@ def _check_deps() -> bool:
     return True
 
 
-def _run(args: list[str]) -> None:
+def _run(args: list[str], env: dict | None = None) -> None:
     print("\n  > " + " ".join([Path(PY).name, *args]) + "\n")
-    subprocess.run([PY, *args], cwd=ROOT)
+    subprocess.run([PY, *args], cwd=ROOT, env={**os.environ, **(env or {})} if env else None)
+
+
+_cam = {"idx": None}
+
+
+def _camera() -> str:
+    """Ask once which camera number to use (cached for the session)."""
+    if _cam["idx"] is None:
+        v = input("  ¿Número de cámara? (Enter = 0; usa 'Ver cámaras' si no sabes): ").strip()
+        _cam["idx"] = v if v else "0"
+    return _cam["idx"]
 
 
 STORE_CFG = "configs/store_config.json"   # calibrate + draw_zone + live demo all share this
@@ -60,13 +72,13 @@ def _yes(question: str) -> bool:
 def _calibrar() -> None:
     print("\n  Calibrar el escaparate: pon la cámara donde irá fija, mira al centro del")
     print("  escaparate y captura con las teclas 1-5. S = guardar, Q = salir.")
-    _run(["visionmetrics/edge/tools/calibrate.py"])
+    _run(["visionmetrics/edge/tools/calibrate.py"], env={"VM_CAMERA": _camera()})
 
 
 def _dibujar_zona() -> None:
     print("\n  Dibuja la zona que SÍ cuenta (la acera de delante; deja margen en los bordes).")
     print("  Clic en cada esquina.  S = guardar   U = deshacer   C = limpiar   Q = salir.")
-    _run(["-m", "visionmetrics.edge.tools.draw_zone", "--source", "0", "--config", STORE_CFG])
+    _run(["-m", "visionmetrics.edge.tools.draw_zone", "--source", _camera(), "--config", STORE_CFG])
 
 
 def _probar_en_vivo() -> None:
@@ -76,7 +88,7 @@ def _probar_en_vivo() -> None:
     print("\n  Se abrirá una ventana con la cámara y los datos en directo.")
     print("  Pulsa Q en la ventana para terminar.")
     _run(["-m", "visionmetrics.edge.agent.service",
-          "--config", "configs/demo.yaml", "--debug", "--report", report])
+          "--config", "configs/demo.yaml", "--debug", "--report", report, "--source", _camera()])
     print("\n  *** LISTO. Envíale a Álvaro este archivo (WhatsApp / email): ***")
     print(f"      {ROOT / report}")
 
@@ -102,7 +114,7 @@ def grabar_datos() -> None:
     nombre = input("\n  Tu nombre (p. ej. hector): ").strip() or "hector"
     print("\n  Se abrirá la cámara. MIRA A LA CÁMARA = 'mirando'.")
     print("  L=mira  A=no mira  T=grabar seguido  M=cambia  G=gafas  H=gorra  Q=guardar.")
-    _run(["-m", "visionmetrics.training.collect", "--collector", nombre])
+    _run(["-m", "visionmetrics.training.collect", "--collector", nombre, "--camera", _camera()])
     print("\n  *** Al terminar te dijo la ruta de UN archivo .csv: envíaselo a Álvaro. ***")
 
 
