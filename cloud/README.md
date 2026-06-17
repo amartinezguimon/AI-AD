@@ -77,6 +77,16 @@ cd cloud/web && npm install && npm run dev               # SPA on :5173  (anothe
 Open http://localhost:5173 and log in with `demo@visionmetrics.app` / `demo1234`.
 The dev server proxies `/v1` to the API, exactly like Caddy does in production.
 
+`seed_demo` fills HISTORY up to **yesterday**; today onward stays blank for real data.
+When a colleague runs the edge demo (`DEMO.bat` → option 1) and sends you the
+`results/demo_*.json` it produced, import it so it shows up as real data for today:
+```bash
+venv/Scripts/python -m cloud.scripts.import_report results/demo_20260617-181500.json
+```
+It lands on a separate "live" device in the demo store (so re-seeding history never
+wipes it) and upserts (re-importing is safe). Refresh the dashboard to see it —
+history ≤ yesterday, real for the hours actually recorded, blank otherwise.
+
 Staff (us) panel: http://localhost:5173/staff — `staff@visionmetrics.app` / `staff1234`.
 The seed also creates a second client with offline / never-seen cameras so the
 fleet view shows the full range of states. (The demo camera reads "online" only

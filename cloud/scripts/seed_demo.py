@@ -64,13 +64,16 @@ def _day_buckets(date: dt.date) -> list[dict]:
 
 
 def _date_range() -> list[dt.date]:
+    # Demo HISTORY runs from the start of last month up to YESTERDAY. Today onward
+    # is left blank so a live test fills it with REAL data (clean cut-over: demo
+    # history ≤ yesterday, real ≥ today).
     today = dt.datetime.now(TZ).date()
     first_this = today.replace(day=1)
     last_prev = first_this - dt.timedelta(days=1)
     first_prev = last_prev.replace(day=1)
     days: list[dt.date] = []
     d = first_prev
-    while d <= today:
+    while d < today:
         days.append(d)
         d += dt.timedelta(days=1)
     return days
