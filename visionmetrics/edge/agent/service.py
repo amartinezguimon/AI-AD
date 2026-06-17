@@ -17,8 +17,11 @@ in production.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import json
 import signal
 import time
+from pathlib import Path
 
 from visionmetrics.shared.schema import SCHEMA_VERSION, Heartbeat
 
@@ -32,7 +35,7 @@ _PERF_INTERVAL_S = 5.0
 AGENT_VERSION = "0.2.0"
 
 
-def run(config_path: str, debug: bool = False) -> int:
+def run(config_path: str, debug: bool = False, report_path: str | None = None) -> int:
     config = DeviceConfig.load(config_path)
     print(f"[agent] device={config.device.device_id} store='{config.device.store_name}'")
 
@@ -64,8 +67,18 @@ def run(config_path: str, debug: bool = False) -> int:
             total_attention_s=t.total_attention_s(),
         )
 
+    report_buckets: list[dict] = []
+    started_at = dt.datetime.now().isoformat(timespec="seconds")
+
     def _dispatch(bucket) -> None:
         """Send a closed-window bucket to the cloud, or print it when uplink is off."""
+        if report_path:
+            report_buckets.append({
+                "window_start": bucket.window_start, "window_end": bucket.window_end,
+                "passersby": bucket.passersby, "engaged": bucket.engaged,
+                "engagement_rate": bucket.engagement_rate,
+                "total_attention_s": bucket.total_attention_s,
+            })
         if uplink is not None:
             uplink.enqueue(bucket)
         else:
@@ -174,6 +187,26 @@ def run(config_path: str, debug: bool = False) -> int:
     t = pipeline.tracker
     print(f"[agent] stopped. passersby={t.total_passersby} engaged={t.total_engaged} "
           f"attention={t.total_attention_s():.0f}s")
+
+    if report_path:
+        report = {
+            "device_id": config.device.device_id,
+            "store_name": config.device.store_name,
+            "agent_version": AGENT_VERSION,
+            "started_at": started_at,
+            "ended_at": dt.datetime.now().isoformat(timespec="seconds"),
+            "frames_processed": frame_idx,
+            "totals": {
+                "passersby": t.total_passersby,
+                "engaged": t.total_engaged,
+                "attention_s": round(t.total_attention_s(), 1),
+            },
+            "buckets": report_buckets,
+        }
+        p = Path(report_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"[agent] report saved -> {p.resolve()}")
     return 0
 
 
@@ -181,8 +214,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="VisionMetrics edge agent")
     ap.add_argument("--config", required=True, help="path to device.yaml")
     ap.add_argument("--debug", action="store_true", help="show an OpenCV preview window")
+    ap.add_argument("--report", default=None, help="write a session report (JSON) here on exit")
     args = ap.parse_args()
-    return run(args.config, debug=args.debug)
+    return run(args.config, debug=args.debug, report_path=args.report)
 
 
 if __name__ == "__main__":

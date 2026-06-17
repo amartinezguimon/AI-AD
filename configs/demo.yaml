@@ -1,0 +1,26 @@
+# Config para la DEMO local (portátil + webcam). La usa el menú (run.py / DEMO.bat).
+# No es una instalación de tienda — es para probar y grabar sin líos.
+device:
+  device_id: "demo"
+  store_id: "demo"
+  store_name: "Demo VisionMetrics"
+
+camera:
+  source: 0            # 0 = webcam integrada. Si no abre, usa la opción "ver cámaras".
+  fov_h_deg: 70.0
+
+vision:
+  passerby_min_height_frac: 0.0   # 0 = cuenta todo (demo cruda). Sube a ~0.15 si cuela gente lejana.
+
+models:
+  yolo: "yolov8n.pt"
+  face: "models/face_landmarker.task"
+  pose: "models/pose_landmarker_lite.task"
+  engagement: "models/engagement_model.pth"
+
+calibration:
+  # Lo crea la opción "Dibujar la zona". Si no existe, cuenta en toda la imagen.
+  config_path: "configs/demo_zone.json"
+
+uplink:
+  enabled: false       # demo local: NO envía nada a ningún servidor.
