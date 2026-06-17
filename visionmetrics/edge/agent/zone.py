@@ -46,15 +46,20 @@ class GazeReference:
 
 @dataclass(frozen=True)
 class CountingRegion:
-    """A calibrated polygon (normalised [0..1] image coords) that bounds where we
-    count people at all. A person is counted — as a passerby AND for engagement —
-    only if their reference point (feet: bbox bottom-centre) falls inside it.
+    """A calibrated polygon (normalised [0..1] image coords) — the operator-drawn
+    "counting zone" (the pavement in front of the window).
 
-    This is the operator-drawn "counting zone": it discards people too far to
-    notice the window (e.g. across the street) and anyone outside the storefront
-    area, fixing the "far people counted" problem at the source. Image-space, so
-    it must be re-drawn if the camera is moved. ``None``/empty => count everywhere
-    (prior behaviour preserved).
+    When a zone is set, footfall is counted by ENTRY: a person is counted once when
+    they were seen OUTSIDE the zone and then cross INSIDE it (feet = bbox
+    bottom-centre). This is the anonymous, retail-standard "count crossings, not
+    identities" rule — no face/appearance recognition, GDPR/AI-Act friendly. It
+    also fixes the field problems: people too far (across the street) never enter;
+    a seated/standing person already inside, or a re-acquired track id popping up
+    inside, has no 'outside' history and is NOT (re-)counted.
+
+    Draw the polygon with a margin from the frame edges so people are detected
+    outside it before they cross in. Image-space, so re-draw if the camera moves.
+    ``None``/empty => count everywhere (legacy confirmed-track rule).
     """
     polygon: tuple[tuple[float, float], ...] = ()
 

@@ -93,6 +93,7 @@ class EngagementPipeline:
         self._moved: set[int] = set()              # canonical ids that have moved enough
         self._face_seen: set[int] = set()          # canonical ids that have shown a face
         self._passerby: set[int] = set()           # canonical ids confirmed as real people
+        self._seen_outside: set[int] = set()       # canonical ids seen OUTSIDE the zone (for entry counting)
 
     def process_frame(self, frame, frame_idx: int, now: float) -> FrameResult:
         if self._focal_px is None:
@@ -108,19 +109,22 @@ class EngagementPipeline:
             x1, y1, x2, y2 = det.bbox
             cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
 
-            # Counting-zone gate: a person only counts (foot traffic AND engagement)
-            # if their feet fall inside the calibrated region. Applied BEFORE the
-            # persistence counter so out-of-zone frames don't build up. This is what
-            # rejects people too far to notice the window (e.g. across the street).
+            # Inside the counting zone? (feet = bbox bottom-centre). With no zone
+            # calibrated, everyone is "inside" (legacy behaviour).
+            inside = True
             if self.region is not None:
                 feet_x = cx / frame_w if frame_w else 0.0
                 feet_y = y2 / frame_h if frame_h else 0.0
-                if not self.region.contains(feet_x, feet_y):
+                inside = self.region.contains(feet_x, feet_y)
+                if not inside:
+                    # Outside the zone: remember we saw them out here (so a later
+                    # cross-in can be detected) but do NOT count or score. This also
+                    # ignores people across the street / on a transverse pavement.
+                    self._seen_outside.add(tid)
                     continue
 
             # Size gate: a box too short (relative to the frame) is someone too far
-            # to be a customer — reject before counting. Complements the zone where
-            # perspective puts distant people inside the polygon.
+            # to be a customer — reject before counting.
             if self.min_height_frac > 0.0 and frame_h and (y2 - y1) < self.min_height_frac * frame_h:
                 continue
 
@@ -140,11 +144,21 @@ class EngagementPipeline:
             if pose is not None:
                 self._face_seen.add(tid)
 
-            # Count as a passerby (foot traffic) the FIRST time the track is a
-            # confirmed real person: persisted + (moved OR shown a face). A static,
-            # faceless box (a chair, a mannequin) is never counted.
             if tid not in self._passerby:
-                if tid in self._moved or tid in self._face_seen:
+                if self.region is not None:
+                    # ZONE-ENTRY counting (anonymous "count crossings, not people"):
+                    # count once when a track that was seen OUTSIDE the zone is now
+                    # inside it — i.e. it actually crossed in. A track that only ever
+                    # appears inside (a seated/standing person, or a re-acquired id
+                    # popping up inside) has no 'outside' history and is NOT counted,
+                    # which kills both the static over-count and the re-count churn.
+                    if tid in self._seen_outside:
+                        self._passerby.add(tid)
+                        self.tracker.register(tid, now)
+                    else:
+                        continue
+                elif tid in self._moved or tid in self._face_seen:
+                    # No zone: legacy rule — a confirmed real person (moved or faced).
                     self._passerby.add(tid)
                     self.tracker.register(tid, now)
                 else:
@@ -166,6 +180,7 @@ class EngagementPipeline:
             self._moved.discard(cid)
             self._face_seen.discard(cid)
             self._passerby.discard(cid)
+            self._seen_outside.discard(cid)
 
         return result
 

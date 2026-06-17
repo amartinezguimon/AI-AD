@@ -283,13 +283,43 @@ def test_person_tall_enough_passes_size_gate():
     assert pipe.tracker.total_passersby == 1
 
 
-def test_person_inside_counting_region_is_counted():
-    region = CountingRegion.from_config(
-        {"polygon": [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]})
-    near = Detection(track_id=1, bbox=(100, 300, 200, 460), confidence=0.9)  # feet ~(0.23, 0.96)
-    pipe = make_pipeline(FakeDetector([near]), FakeHeadPose(STRAIGHT), 1.0,
-                         passerby_min_frames=1, counting_region=region,
-                         count_threshold_s=1.0)
-    for i in range(3):
+BOTTOM_HALF = CountingRegion.from_config(
+    {"polygon": [[0.0, 0.5], [1.0, 0.5], [1.0, 1.0], [0.0, 1.0]]})  # inside = feet below y=240
+
+
+def test_zone_entry_counts_a_cross_in_once():
+    # Walks DOWN into the zone: feet y2 goes 150,200,230 (outside) -> 260,300,340 (inside).
+    per_frame = [[Detection(track_id=1, bbox=(100, y2 - 160, 200, y2), confidence=0.9)]
+                 for y2 in (150, 200, 230, 260, 300, 340)]
+    pipe = make_pipeline(FakeDetectorSequence(per_frame), FakeHeadPose(None), 1.0,
+                         passerby_min_frames=1, counting_region=BOTTOM_HALF, count_threshold_s=1.0)
+    for i in range(len(per_frame)):
+        pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 1     # one cross-in = one count
+
+
+def test_static_person_inside_zone_is_not_counted():
+    # A seated/standing person always inside the zone, never seen outside -> never
+    # counted (kills the bar "passerby rises with nobody entering" problem).
+    inside = Detection(track_id=1, bbox=(100, 140, 200, 300), confidence=0.9)  # feet y=300 inside
+    pipe = make_pipeline(FakeDetector([inside]), FakeHeadPose(STRAIGHT), 1.0,
+                         passerby_min_frames=1, counting_region=BOTTOM_HALF, count_threshold_s=1.0)
+    for i in range(10):
+        pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 0
+
+
+def test_zone_entry_not_recounted_on_id_switch():
+    # Person crosses in (id 1), is lost, reappears inside as id 2 at the same spot.
+    # Must NOT be re-counted: either the reconciler heals 2->1, or id 2 has no
+    # 'outside' history -> not counted. Either way the count stays 1.
+    box_in = (100, 140, 200, 300)
+    out = Detection(track_id=1, bbox=(100, 40, 200, 200), confidence=0.9)   # feet y=200 outside
+    a = Detection(track_id=1, bbox=box_in, confidence=0.9)                  # id1 inside
+    c = Detection(track_id=2, bbox=box_in, confidence=0.9)                  # id2 same spot (churn)
+    per_frame = [[out], [a], [a], [], [], [c], [c]]
+    pipe = make_pipeline(FakeDetectorSequence(per_frame), FakeHeadPose(STRAIGHT), 1.0,
+                         passerby_min_frames=1, counting_region=BOTTOM_HALF, count_threshold_s=1.0)
+    for i in range(len(per_frame)):
         pipe.process_frame(FRAME, frame_idx=i, now=float(i))
     assert pipe.tracker.total_passersby == 1
