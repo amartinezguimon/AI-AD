@@ -81,14 +81,25 @@ def _grab_frame(source: str):
             raise SystemExit(f"Could not read image: {source}")
         return frame
 
+    import time
+
     from ..agent.capture import open_capture  # DirectShow on Windows so Camo/OBS open
 
     cap = open_capture(source)
-    ok, frame = cap.read()
+    if not cap.isOpened():
+        raise SystemExit(f"No pude abrir la cámara {source}. Usa 'Ver cámaras' para el número.")
+    # Warm-up: webcams/virtual cams (Camo, OBS) often return an empty first frame.
+    frame = None
+    for _ in range(60):
+        ok, f = cap.read()
+        if ok and f is not None:
+            frame = f
+            break
+        time.sleep(0.03)
     cap.release()
-    if not ok or frame is None:
-        raise SystemExit(f"Could not grab a frame from source: {source}. "
-                         "Run 'Ver cámaras' to find the right number.")
+    if frame is None:
+        raise SystemExit(f"La cámara {source} abrió pero no dio imagen. "
+                         "¿Está Camo Studio en marcha y el móvil conectado?")
     return frame
 
 
