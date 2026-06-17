@@ -47,7 +47,9 @@ def _check_deps() -> bool:
 
 def _run(args: list[str], env: dict | None = None) -> None:
     print("\n  > " + " ".join([Path(PY).name, *args]) + "\n")
-    subprocess.run([PY, *args], cwd=ROOT, env={**os.environ, **(env or {})} if env else None)
+    # Force UTF-8 in the child so accents/emojis never crash on a Windows console.
+    full_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", **(env or {})}
+    subprocess.run([PY, *args], cwd=ROOT, env=full_env)
 
 
 _cam = {"idx": None}
