@@ -6,13 +6,12 @@ Todo desde **un solo sitio**, paso a paso. Sin abrir 500 pestañas.
 Necesitas **Python 3.10+** y **Git** instalados. Luego, en PowerShell, dentro de la carpeta del proyecto:
 
 ```powershell
-git checkout refactor/monorepo-edge-agent
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> Si lo bajas de cero: `git clone https://github.com/amartinezguimon/AI-AD.git` → `cd AI-AD` → y luego lo de arriba.
+> Si lo bajas de cero: `git clone https://github.com/amartinezguimon/AI-AD.git` → `cd AI-AD` → y luego lo de arriba. (Ya está todo en `main`, no hay que cambiar de rama.)
 
 ## 2) Cada vez que quieras usarlo
 **Doble clic en `DEMO.bat`** (o en PowerShell: `python run.py`).
