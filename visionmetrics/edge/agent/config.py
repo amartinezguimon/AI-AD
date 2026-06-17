@@ -40,6 +40,12 @@ class VisionConfig:
     # rejects flickery false boxes and static furniture (a chair never does both).
     passerby_min_frames: int = 8     # must persist this many frames before counting
     passerby_motion_px: int = 40     # movement (px) that proves a faceless track is a person
+    # Ignore people whose bounding box is shorter than this fraction of the frame
+    # height — i.e. too far away to be a real customer (across the street, a
+    # transverse pavement). 0.0 = off. Set per store (e.g. 0.15) alongside the
+    # counting zone; complements it where perspective makes far people fall inside
+    # the polygon. Applies to BOTH foot traffic and engagement.
+    passerby_min_height_frac: float = 0.0
     head_crop_frac: float = 0.45
     head_upscale: int = 4
     face_skip_frames: int = 3

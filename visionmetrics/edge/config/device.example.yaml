@@ -25,6 +25,9 @@ vision:
   # persisted AND either moved or shown a face. Rejects flicker + static furniture.
   passerby_min_frames: 8            # frames a box must persist before it can count
   passerby_motion_px: 40            # movement (px) that proves a faceless track is a person
+  passerby_min_height_frac: 0.0     # ignore people shorter than this fraction of the frame
+                                    #   (too far to be a customer). 0 = off; ~0.15 in a store
+                                    #   with a transverse street. Complements the counting zone.
   head_crop_frac: 0.45              # top fraction of the person bbox treated as the head
   head_upscale: 4                   # upscale factor on the head crop (enables 4 m+ detection)
   face_skip_frames: 3               # run MediaPipe face every N frames per person

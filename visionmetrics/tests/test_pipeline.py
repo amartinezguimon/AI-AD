@@ -97,6 +97,7 @@ STRAIGHT = HeadPose(yaw=0.0, pitch=0.0, distance=0.19, dist_m=1.0, nose_px=(10, 
 
 def make_pipeline(detector, head_pose, classifier_prob, *,
                   passerby_min_frames=1, passerby_motion_px=40,
+                  passerby_min_height_frac=0.0,
                   classifier=None, gaze_reference=None, counting_region=None, **params):
     return EngagementPipeline(
         detector=detector,
@@ -108,6 +109,7 @@ def make_pipeline(detector, head_pose, classifier_prob, *,
         fov_h_deg=70.0,
         passerby_min_frames=passerby_min_frames,
         passerby_motion_px=passerby_motion_px,
+        passerby_min_height_frac=passerby_min_height_frac,
         gaze_reference=gaze_reference,
         counting_region=counting_region,
     )
@@ -257,6 +259,28 @@ def test_person_outside_counting_region_is_not_counted():
     assert pipe.tracker.total_passersby == 0
     assert pipe.tracker.total_engaged == 0
     assert r.persons == []
+
+
+def test_person_too_small_is_not_counted():
+    # bbox height 40px / 480 = 8% < 20% threshold -> too far, ignored entirely.
+    small = Detection(track_id=1, bbox=(300, 200, 360, 240), confidence=0.9)
+    pipe = make_pipeline(FakeDetector([small]), FakeHeadPose(STRAIGHT), 1.0,
+                         passerby_min_frames=1, passerby_min_height_frac=0.20,
+                         count_threshold_s=1.0)
+    for i in range(4):
+        r = pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 0
+    assert r.persons == []
+
+
+def test_person_tall_enough_passes_size_gate():
+    tall = Detection(track_id=1, bbox=(300, 80, 360, 400), confidence=0.9)  # h=320 = 67%
+    pipe = make_pipeline(FakeDetector([tall]), FakeHeadPose(STRAIGHT), 1.0,
+                         passerby_min_frames=1, passerby_min_height_frac=0.20,
+                         count_threshold_s=1.0)
+    for i in range(3):
+        pipe.process_frame(FRAME, frame_idx=i, now=float(i))
+    assert pipe.tracker.total_passersby == 1
 
 
 def test_person_inside_counting_region_is_counted():

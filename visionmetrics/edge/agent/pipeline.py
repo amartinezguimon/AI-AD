@@ -61,6 +61,7 @@ class EngagementPipeline:
         fov_h_deg: float,
         passerby_min_frames: int = 8,
         passerby_motion_px: int = 40,
+        passerby_min_height_frac: float = 0.0,
         zone_soft_margin: float = 0.30,
         reconcile_params: ReconcileParams | None = None,
         gaze_reference: GazeReference | None = None,
@@ -80,6 +81,7 @@ class EngagementPipeline:
         self.fov_h_deg = fov_h_deg
         self.passerby_min_frames = max(1, passerby_min_frames)
         self.passerby_motion_px = passerby_motion_px
+        self.min_height_frac = passerby_min_height_frac
         self.zone_soft_margin = zone_soft_margin
         self.tracker = EngagementTracker(engagement_params)
         # Heals ByteTrack id switches: a re-detected person keeps one stable id,
@@ -115,6 +117,12 @@ class EngagementPipeline:
                 feet_y = y2 / frame_h if frame_h else 0.0
                 if not self.region.contains(feet_x, feet_y):
                     continue
+
+            # Size gate: a box too short (relative to the frame) is someone too far
+            # to be a customer — reject before counting. Complements the zone where
+            # perspective puts distant people inside the polygon.
+            if self.min_height_frac > 0.0 and frame_h and (y2 - y1) < self.min_height_frac * frame_h:
+                continue
 
             seen = self._seen[tid] = self._seen.get(tid, 0) + 1
 

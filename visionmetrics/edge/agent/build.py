@@ -74,6 +74,7 @@ def build_pipeline(config: DeviceConfig) -> EngagementPipeline:
         fov_h_deg=config.camera.fov_h_deg,
         passerby_min_frames=v.passerby_min_frames,
         passerby_motion_px=v.passerby_motion_px,
+        passerby_min_height_frac=v.passerby_min_height_frac,
         zone_soft_margin=config.engagement.zone_soft_margin,
         reconcile_params=ReconcileParams(
             grace_frames=v.reassoc_grace_frames, min_iou=v.reassoc_min_iou,
