@@ -9,6 +9,10 @@ VisionMetrics measures how people interact with physical advertisements (store w
 > - **`src/`** — the original prototype (this README), **frozen** but still runnable.
 > - **`visionmetrics/`** — the productized monorepo (edge agent + cloud + dashboard) being built toward a SaaS pilot. See [`ROADMAP.md`](ROADMAP.md) and [`visionmetrics/README.md`](visionmetrics/README.md).
 >
+> **👉 To run or test the current system, use [`EMPEZAR_AQUI.md`](EMPEZAR_AQUI.md)** (one-click
+> `DEMO.bat` / `python run.py`). It uses the new agent + current model. **Do NOT use the
+> `python src/inference/main.py` commands below — that is the legacy prototype.**
+>
 > Everything below describes the legacy prototype.
 
 ---
