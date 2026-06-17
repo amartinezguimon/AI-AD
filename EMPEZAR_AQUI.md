@@ -18,19 +18,24 @@ pip install -r requirements.txt
 
 Sale un menú. Escribe el número y Enter:
 
+Sale un menú. Escribe el número y Enter:
+
 | Opción | Qué hace | Qué me envías |
 |---|---|---|
-| **1) Probar en vivo** | Abre la cámara con los datos en directo. Pulsa **Q** para terminar. | El archivo `results\demo_….json` que te indica al final |
+| **1) DEMO guiada** | Te lleva de la mano: **calibrar escaparate → dibujar la zona → probar en vivo**. Cada paso puedes saltarlo escribiendo `n`. Al terminar la prueba, pulsa **Q**. | El archivo `results\demo_….json` que te indica al final |
 | **2) Grabar datos** | Te pide tu nombre y graba ejemplos (**L**=mira, **A**=no, **T**=grabar seguido, **G**=gafas, **H**=gorra, **Q**=guardar). | El archivo `data\raw_sessions\….csv` que te indica al final |
-| **3) Dibujar la zona** | Marcas con clics la acera que cuenta (**S**=guardar). | (nada; queda guardado para las pruebas) |
-| **4) Ver cámaras** | Si la cámara no abre, te dice los números disponibles. | — |
+| **3) Solo dibujar la zona** | Marcas con clics la acera que cuenta (**S**=guardar). | (nada; queda guardado) |
+| **4) Solo calibrar** | Calibra el escaparate (capturas con **1-5**, **S**=guardar). | (nada; queda guardado) |
+| **5) Ver cámaras** | Si la cámara no abre, te dice los números disponibles. | — |
 | **0) Salir** | | |
 
+> Lo normal es la **opción 1** (lo hace todo en orden). Las 3 y 4 son por si quieres rehacer solo un paso.
+
 ## 3) Enviarme los archivos
-Cuando una opción termina, te escribe en pantalla **la ruta exacta** del archivo.
+Cuando termina, te escribe en pantalla **la ruta exacta** del archivo.
 Mándamelo por **WhatsApp o email**. **No hace falta tocar GitHub.**
 
 ## Notas
 - Al **grabar** (opción 2): recuerda que **“mirar” = mirar a la cámara** (la cámara hace de escaparate). Graba variedad: con/sin gafas y gorra, de cerca y de lejos.
-- Al **probar en vivo** (opción 1): si cuenta de más por gente lejana o de la otra calle, usa la opción **3** para dibujar la zona sobre la acera de delante y vuelve a probar.
+- En la **demo guiada**: la calibración y la zona se guardan juntas, así que la prueba en vivo ya las usa. Si cuenta de más por gente lejana, repite el paso de la zona (opción 3).
 - Si algo falla, hazme una **captura de la pantalla** con el error y me la mandas.

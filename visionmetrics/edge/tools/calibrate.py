@@ -357,6 +357,17 @@ while True:
         if z.get("dist_far_m") is not None:
             calibration["derived"]["dist_max_m"] = round(z["dist_far_m"], 2)
 
+        # Merge into any existing store config so we don't wipe a counting_region
+        # drawn with draw_zone (the two tools write different parts of the same file).
+        if os.path.exists(CONFIG_PATH):
+            try:
+                with open(CONFIG_PATH) as f:
+                    existing = json.load(f)
+                for k, v in existing.items():
+                    calibration.setdefault(k, v)
+            except (json.JSONDecodeError, OSError):
+                pass
+
         with open(CONFIG_PATH, "w") as f:
             json.dump(calibration, f, indent=2)
 

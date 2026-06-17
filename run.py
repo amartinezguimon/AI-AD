@@ -49,16 +49,53 @@ def _run(args: list[str]) -> None:
     subprocess.run([PY, *args], cwd=ROOT)
 
 
-def demo_en_vivo() -> None:
+STORE_CFG = "configs/store_config.json"   # calibrate + draw_zone + live demo all share this
+
+
+def _yes(question: str) -> bool:
+    """Ask a yes/no question. Enter or 's' = yes; 'n' = skip."""
+    return input(f"  {question} [S/n]: ").strip().lower() not in ("n", "no")
+
+
+def _calibrar() -> None:
+    print("\n  Calibrar el escaparate: pon la cámara donde irá fija, mira al centro del")
+    print("  escaparate y captura con las teclas 1-5. S = guardar, Q = salir.")
+    _run(["visionmetrics/edge/tools/calibrate.py"])
+
+
+def _dibujar_zona() -> None:
+    print("\n  Dibuja la zona que SÍ cuenta (la acera de delante; deja margen en los bordes).")
+    print("  Clic en cada esquina.  S = guardar   U = deshacer   C = limpiar   Q = salir.")
+    _run(["-m", "visionmetrics.edge.tools.draw_zone", "--source", "0", "--config", STORE_CFG])
+
+
+def _probar_en_vivo() -> None:
     (ROOT / "results").mkdir(exist_ok=True)
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     report = f"results/demo_{stamp}.json"
     print("\n  Se abrirá una ventana con la cámara y los datos en directo.")
-    print("  Colócate / que pase gente delante. Pulsa Q en la ventana para terminar.")
+    print("  Pulsa Q en la ventana para terminar.")
     _run(["-m", "visionmetrics.edge.agent.service",
           "--config", "configs/demo.yaml", "--debug", "--report", report])
     print("\n  *** LISTO. Envíale a Álvaro este archivo (WhatsApp / email): ***")
     print(f"      {ROOT / report}")
+
+
+def demo_guiada() -> None:
+    """Todo en uno: calibrar → dibujar zona → probar. Cada paso se puede saltar."""
+    print("\n  === DEMO GUIADA ===  (puedes saltar cualquier paso escribiendo 'n')")
+    print("\n  Paso 1/3 — Calibrar el escaparate (hacia dónde mira la gente).")
+    if _yes("¿Calibrar ahora?"):
+        _calibrar()
+    else:
+        print("  (saltado — se usará lo que ya hubiera, o nada)")
+    print("\n  Paso 2/3 — Dibujar la zona de conteo (la acera que cuenta).")
+    if _yes("¿Dibujar la zona ahora?"):
+        _dibujar_zona()
+    else:
+        print("  (saltado)")
+    print("\n  Paso 3/3 — Probar el modelo en vivo.")
+    _probar_en_vivo()
 
 
 def grabar_datos() -> None:
@@ -69,22 +106,16 @@ def grabar_datos() -> None:
     print("\n  *** Al terminar te dijo la ruta de UN archivo .csv: envíaselo a Álvaro. ***")
 
 
-def dibujar_zona() -> None:
-    print("\n  Haz clic en las esquinas de la acera que SÍ cuenta (deja margen en los bordes).")
-    print("  S=guardar   U=deshacer   C=limpiar   Q=salir.")
-    _run(["-m", "visionmetrics.edge.tools.draw_zone",
-          "--source", "0", "--config", "configs/demo_zone.json"])
-
-
 def ver_camaras() -> None:
     _run(["visionmetrics/edge/tools/check_cameras.py"])
 
 
 MENU = {
-    "1": ("Probar el modelo EN VIVO (cámara) + guardar informe", demo_en_vivo),
+    "1": ("DEMO guiada: calibrar → zona → probar en vivo", demo_guiada),
     "2": ("Grabar datos para entrenar (y enviármelos)", grabar_datos),
-    "3": ("Dibujar la zona de conteo (la acera)", dibujar_zona),
-    "4": ("Ver qué cámaras hay (si la cámara no abre)", ver_camaras),
+    "3": ("Solo: dibujar la zona de conteo", _dibujar_zona),
+    "4": ("Solo: calibrar el escaparate", _calibrar),
+    "5": ("Ver qué cámaras hay (si la cámara no abre)", ver_camaras),
 }
 
 

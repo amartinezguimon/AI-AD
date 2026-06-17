@@ -19,8 +19,9 @@ models:
   engagement: "models/engagement_model.pth"
 
 calibration:
-  # Lo crea la opción "Dibujar la zona". Si no existe, cuenta en toda la imagen.
-  config_path: "configs/demo_zone.json"
+  # Lo generan "Calibrar escaparate" y "Dibujar la zona" (misma ruta, se fusionan).
+  # Si no existe, el modelo corre sin zona (cuenta en toda la imagen).
+  config_path: "configs/store_config.json"
 
 uplink:
   enabled: false       # demo local: NO envía nada a ningún servidor.
