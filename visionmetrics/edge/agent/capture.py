@@ -20,17 +20,34 @@ import time
 import cv2
 
 
+def _delivers_image(cap, secs: float = 1.5) -> bool:
+    """True if the capture yields a non-black frame within `secs` (some virtual
+    cams open fine but output all-black on the 'wrong' backend)."""
+    t = time.time()
+    while time.time() - t < secs:
+        ok, f = cap.read()
+        if ok and f is not None and float(f.mean()) >= 8:
+            return True
+        time.sleep(0.03)
+    return False
+
+
 def open_capture(source):
-    """Open a cv2 capture, preferring DirectShow on Windows for webcam/virtual-cam
-    indices (Camo Studio, OBS, etc. often fail under the default MSMF backend).
-    A string digit ("1") is treated as a webcam index."""
+    """Open a cv2 capture. On Windows, for a webcam/virtual-cam index, try
+    DirectShow then MSMF and KEEP the backend that actually delivers a non-black
+    frame — Camo Studio / OBS can open on one backend but output black on the
+    other. A string digit ("1") is treated as a webcam index."""
     if isinstance(source, str) and source.isdigit():
         source = int(source)
     if isinstance(source, int) and sys.platform.startswith("win"):
-        cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
-        if cap.isOpened():
-            return cap
-        cap.release()
+        for api in (cv2.CAP_DSHOW, cv2.CAP_MSMF):
+            cap = cv2.VideoCapture(source, api)
+            if cap.isOpened() and _delivers_image(cap):
+                return cap
+            cap.release()
+        # Nothing produced a real frame yet (camera still warming up / not
+        # streaming): open with DirectShow anyway; the caller waits for frames.
+        return cv2.VideoCapture(source, cv2.CAP_DSHOW)
     return cv2.VideoCapture(source)
 
 

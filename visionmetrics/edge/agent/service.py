@@ -52,6 +52,19 @@ def run(config_path: str, debug: bool = False, report_path: str | None = None,
     print(f"[agent] camera open: {source.width}x{source.height} @ {source.fps:.0f}fps "
           f"(realtime={source.realtime})")
 
+    # Phone-as-webcam (Camo over WiFi) can take a few seconds to start pushing real
+    # video even after it 'connects' — wait for the first non-black frame instead of
+    # processing a black screen.
+    if source.realtime:
+        print("[agent] esperando imagen de la cámara…")
+        t_wait = time.time()
+        while time.time() - t_wait < 12.0:
+            ok, f = source.read()
+            if ok and f is not None and float(f.mean()) >= 8:
+                print("[agent] imagen recibida.")
+                break
+            time.sleep(0.3)
+
     # Cloud uplink: emit per-window metric buckets, ship them on a background
     # thread with an offline SQLite buffer. Disabled (None) for local tests.
     emitter = MetricEmitter(config.device.device_id, config.device.store_id,
